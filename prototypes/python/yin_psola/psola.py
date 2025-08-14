@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Tuple
-from .pyin import pyin
+from pyin import pyin
 
 def psola(y: np.ndarray,
           target_f0: np.ndarray,

@@ -2,7 +2,7 @@ use crate::audio::AudioClip;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 pub struct ClipManager {
-    clips: Vec<AudioClip>,
+    pub clips: Vec<AudioClip>,
     clip_receiver: UnboundedReceiver<AudioClip>,
     clip_sender: UnboundedSender<AudioClip>,
 }
@@ -26,6 +26,7 @@ impl ClipManager {
     }
 
     pub fn load_through_rfd(&mut self) {
+        let clips_clone = self.clips.clone();
         let sender = self.clip_sender.clone();
 
         tokio::spawn(async move {
@@ -35,6 +36,12 @@ impl ClipManager {
                 .pick_file()
             {
                 if let Ok(audio) = crate::audio::file::AudioFile::load(&path) {
+                    for clip in &clips_clone {
+                        if clip.uuid == egui::Id::new(path.to_string_lossy()) {
+                            println!("Clip already exists: {}", clip.name);
+                            return;
+                        }
+                    }
                     let clip = AudioClip {
                         name: path
                             .file_name()
@@ -44,6 +51,7 @@ impl ClipManager {
                         sample_rate: audio.spec().sample_rate,
                         n_samples: audio.samples().len(),
                         waveform: audio.samples().to_vec(),
+                        uuid: egui::Id::new(path.to_string_lossy()),
                     };
 
                     if let Err(e) = sender.send(clip) {

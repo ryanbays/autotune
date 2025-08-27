@@ -1,5 +1,4 @@
 mod audio;
-mod autotune;
 mod gui;
 
 use crate::gui::AutotuneApp;

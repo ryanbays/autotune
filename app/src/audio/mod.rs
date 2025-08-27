@@ -1,3 +1,4 @@
+pub mod autotune;
 pub mod clip_manager;
 pub mod file;
 

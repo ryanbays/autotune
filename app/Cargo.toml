@@ -8,5 +8,6 @@ cpal = "0.16.0"
 eframe = "0.32.0"
 egui = "0.32.0"
 hound = "3.5.1"
+ndarray = "0.16.1"
 rfd = { version = "0.15.4", default-features = false, features = ["gtk3"] }
 tokio = { version = "1.47.1", features = ["full"] }

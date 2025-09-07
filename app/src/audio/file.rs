@@ -1,3 +1,4 @@
+use crate::audio::autotune::pyin::{PYinOutput, pyin};
 use hound::{WavReader, WavSpec, WavWriter};
 use std::io;
 use std::path::Path;
@@ -5,6 +6,7 @@ use std::path::Path;
 pub struct AudioFile {
     samples: Vec<f32>,
     spec: WavSpec,
+    pyin_result: Option<PYinOutput>,
 }
 
 impl AudioFile {
@@ -19,7 +21,11 @@ impl AudioFile {
             .map(|sample| sample.unwrap_or(0) as f32 / i16::MAX as f32)
             .collect();
 
-        Ok(AudioFile { samples, spec })
+        Ok(AudioFile {
+            samples,
+            spec,
+            pyin_result: None,
+        })
     }
 
     /// Save audio data to a WAV file
@@ -40,14 +46,49 @@ impl AudioFile {
         Ok(())
     }
 
+    pub fn new(samples: Vec<f32>, spec: WavSpec) -> Self {
+        AudioFile {
+            samples,
+            spec,
+            pyin_result: None,
+        }
+    }
+
+    /// Run PYin pitch detection on the audio samples
+    pub fn run_pyin(
+        &mut self,
+        frame_length: usize,
+        hop_length: usize,
+        f_min: f32,
+        f_max: f32,
+        threshold: f32,
+    ) {
+        let result = pyin(
+            &ndarray::Array1::from_vec(self.samples.clone()),
+            frame_length,
+            hop_length,
+            self.spec.sample_rate,
+            f_min,
+            f_max,
+            threshold,
+        );
+        self.pyin_result = Some(result);
+    }
+
+    pub fn get_pyin_result(&mut self) -> &PYinOutput {
+        if self.pyin_result.is_none() {
+            self.run_pyin(2048, 256, 0.1, 0.2, 0.05);
+        }
+        self.pyin_result.as_ref().unwrap()
+    }
+
     /// Get the audio samples as a slice
-    pub fn samples(&self) -> &[f32] {
+    pub fn get_samples(&self) -> &[f32] {
         &self.samples
     }
 
     /// Get the audio specification
-    pub fn spec(&self) -> WavSpec {
+    pub fn get_spec(&self) -> WavSpec {
         self.spec
     }
 }
-

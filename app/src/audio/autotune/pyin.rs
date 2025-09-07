@@ -1,5 +1,6 @@
 use ndarray::{Array1, ArrayView1, s};
 
+#[derive(Debug, Clone)]
 pub struct PYinOutput {
     pub f0: Array1<f32>,
     pub voiced_flag: Array1<bool>,

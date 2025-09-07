@@ -48,9 +48,9 @@ impl ClipManager {
                             .unwrap_or_default()
                             .to_string_lossy()
                             .into_owned(),
-                        sample_rate: audio.spec().sample_rate,
-                        n_samples: audio.samples().len(),
-                        waveform: audio.samples().to_vec(),
+                        sample_rate: audio.get_spec().sample_rate,
+                        n_samples: audio.get_samples().len(),
+                        waveform: audio.get_samples().to_vec(),
                         uuid: egui::Id::new(path.to_string_lossy()),
                     };
 

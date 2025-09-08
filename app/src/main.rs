@@ -29,7 +29,7 @@ struct Args {
 }
 
 #[tokio::main]
-async fn main() -> eframe::Result<()> {
+async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     if !args.nogui {
         let options = eframe::NativeOptions {
@@ -38,21 +38,23 @@ async fn main() -> eframe::Result<()> {
                 .with_decorations(true),
             ..Default::default()
         };
-        return eframe::run_native(
+        eframe::run_native(
             "My egui App",
             options,
             Box::new(|_cc| Ok(Box::new(AutotuneApp::default()))),
-        );
+        )
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+        return Ok(());
     }
-    let input = args.input.expect("Input file is required in nogui mode");
+    let input = args.input.expect("No input file provided");
     let output = args.output.unwrap_or_else(|| PathBuf::from("output.wav"));
     let scale = args.scale.expect("No scale provided");
     println!("Input file: {}", input.to_string_lossy());
     println!("Output file: {}", output.to_string_lossy());
     println!("Scale: {:?}", scale);
 
-    let mut file = audio::file::AudioFile::load(&input).expect("Failed to load input file");
-    println!("Loaded file with {} samples", file.get_samples().len());
+    let mut file = audio::file::AudioFile::load(input).expect("Failed to load input file");
+    println!("Loaded file with {} samples", file.get_n_samples());
 
     file.run_pyin(2048, 256, 50.0, 2100.0, 0.1);
     println!("Ran PYIN pitch detection");
@@ -66,16 +68,18 @@ async fn main() -> eframe::Result<()> {
     let processed_samples = audio::autotune::pitch_shift(
         file.get_samples(),
         &snapped_f0,
-        file.get_spec().sample_rate,
+        file.get_sample_rate(),
         500,
         500,
         50.0,
         2100.0,
     );
     println!("Processed samples length: {}", processed_samples.len());
+    /*
     let output_file = audio::file::AudioFile::new(processed_samples, file.get_spec());
     output_file
         .save(&output)
         .expect("Failed to save output file");
+    */
     Ok(())
 }

@@ -1,10 +1,34 @@
+use crate::audio::Key;
 use ndarray::{Array1, ArrayView1, s};
 
 #[derive(Debug, Clone)]
-pub struct PYinOutput {
+pub struct PYinResult {
     pub f0: Array1<f32>,
     pub voiced_flag: Array1<bool>,
     pub voiced_prob: Array1<f32>,
+}
+impl PYinResult {
+    pub fn snap_to_scale(&self, key: Key) -> Array1<f32> {
+        let scale_frequencies = key.get_scale_frequencies(2, 6); // From octave 2 to 6
+        self.f0
+            .iter()
+            .map(|&freq| {
+                if freq <= 0.0 {
+                    return 0.0;
+                }
+                let mut closest_freq = scale_frequencies[0];
+                let mut min_diff = (freq - closest_freq).abs();
+                for &scale_freq in &scale_frequencies[1..] {
+                    let diff = (freq - scale_freq).abs();
+                    if diff < min_diff {
+                        min_diff = diff;
+                        closest_freq = scale_freq;
+                    }
+                }
+                closest_freq
+            })
+            .collect()
+    }
 }
 
 pub fn difference_function(frame: &ArrayView1<f32>) -> Array1<f32> {
@@ -58,7 +82,7 @@ pub fn pyin(
     f_min: f32,
     f_max: f32,
     threshold: f32,
-) -> PYinOutput {
+) -> PYinResult {
     let n_frames = 1 + (y.len() - frame_length) / hop_length;
 
     let mut f0 = Array1::zeros(n_frames);
@@ -87,7 +111,7 @@ pub fn pyin(
         }
     }
 
-    PYinOutput {
+    PYinResult {
         f0,
         voiced_flag,
         voiced_prob,

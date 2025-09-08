@@ -1,4 +1,4 @@
-use crate::audio::autotune::pyin::{PYinOutput, pyin};
+use crate::audio::autotune::pyin::{PYinResult, pyin};
 use ndarray::{Array1, s};
 
 pub fn find_pitch_marks(
@@ -10,25 +10,19 @@ pub fn find_pitch_marks(
 ) -> Vec<usize> {
     let mut pitch_marks = Vec::new();
 
-    // Find the first voiced frame
-    if let Some((first_i, &f0_start)) = f0
-        .iter()
-        .enumerate()
-        .find(|(i, f)| voiced_flag[*i] && **f > 0.0)
-    {
-        let mut current_position = first_i * hop_length;
-        let mut current_period = (sample_rate as f32 / f0_start) as usize;
+    let mut current_position = 0;
+    while current_position < y.len() {
+        let frame_index = current_position / hop_length;
+        if frame_index >= f0.len() {
+            break;
+        }
 
-        while current_position < y.len() {
+        if voiced_flag[frame_index] && f0[frame_index] > 0.0 {
             pitch_marks.push(current_position);
-
-            // Estimate next period from local f0 if available
-            let frame_index = current_position / hop_length;
-            if frame_index < f0.len() && voiced_flag[frame_index] && f0[frame_index] > 0.0 {
-                current_period = (sample_rate as f32 / f0[frame_index]) as usize;
-            }
-
-            current_position += current_period.max(1); // Ensure we move forward at least 1 sample
+            let current_period = (sample_rate as f32 / f0[frame_index]) as usize;
+            current_position += current_period.max(1);
+        } else {
+            current_position += hop_length;
         }
     }
 
@@ -168,7 +162,7 @@ pub fn psola(
     hop_length: usize,
     f_min: f32,
     f_max: f32,
-    pyin_result: Option<PYinOutput>,
+    pyin_result: Option<PYinResult>,
 ) -> Array1<f32> {
     // Get source pitch using PYIN
     let pyin_output = pyin_result.unwrap_or(pyin(

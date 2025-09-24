@@ -1,5 +1,5 @@
 use crate::audio::Key;
-use ndarray::{Array1, ArrayView1, s};
+use ndarray::{Array1, ArrayView1, Axis, s};
 
 #[derive(Debug, Clone)]
 pub struct PYinResult {
@@ -85,6 +85,8 @@ pub fn pyin(
 ) -> PYinResult {
     let n_frames = 1 + (y.len() - frame_length) / hop_length;
 
+    println!("{}", n_frames);
+
     let mut f0 = Array1::zeros(n_frames);
     let mut voiced_flag = Array1::from_elem(n_frames, false);
     let mut voiced_prob = Array1::zeros(n_frames);
@@ -115,5 +117,109 @@ pub fn pyin(
         f0,
         voiced_flag,
         voiced_prob,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::audio::{Key, Note, Scale};
+
+    const sample_rate: u32 = 44100;
+
+    fn generate_sine_wave(freq: f32, duration: f32) -> Array1<f32> {
+        let n_samples = (sample_rate as f32 * duration) as usize;
+        Array1::from_iter((0..n_samples).map(|i| {
+            let t = i as f32 / sample_rate as f32;
+            (2.0 * std::f32::consts::PI * freq * t).sin()
+        }))
+    }
+
+    fn generate_test_signal(freqs: Vec<f32>) -> Array1<f32> {
+        let mut signal = Array1::zeros(0);
+        for &freq in &freqs {
+            let sine_wave = generate_sine_wave(freq, 1.0);
+            signal.append(Axis(0), sine_wave.view()).unwrap();
+        }
+        signal
+    }
+    fn generate_silent_signal() -> Array1<f32> {
+        Array1::zeros(44100)
+    }
+    #[test]
+    fn test_pyin() {
+        let frequencies = vec![440.0, 360.0, 220.0, 618.0];
+        let signal = generate_test_signal(frequencies);
+        let frame_length = 2048;
+        let hop_length = 512;
+        let f_min = 80.0;
+        let f_max = 1000.0;
+        let threshold = 0.1;
+
+        let pyin_result = pyin(
+            &signal,
+            frame_length,
+            hop_length,
+            sample_rate,
+            f_min,
+            f_max,
+            threshold,
+        );
+
+        // Check that some pitches were detected
+        assert!(pyin_result.f0.iter().any(|&f| f > 0.0));
+    }
+
+    #[test]
+    fn test_snap_to_scale() {
+        // Create test PYinResult
+        let f0 = Array1::from_vec(vec![440.0, 445.0, 0.0, 220.0, 880.0]);
+        let voiced_flag = Array1::from_vec(vec![true, true, false, true, true]);
+        let voiced_prob = Array1::from_vec(vec![0.9, 0.8, 0.1, 0.95, 0.85]);
+
+        let pyin_result = PYinResult {
+            f0,
+            voiced_flag,
+            voiced_prob,
+        };
+
+        // Create a C major scale
+        let key = Key {
+            root: Note::C, // Middle C
+            scale: Scale::Major,
+        };
+
+        // Snap frequencies to scale
+        let snapped = pyin_result.snap_to_scale(key);
+
+        // Expected frequencies (approximately):
+        // 440.0 Hz -> 440.0 Hz (A4)
+        // 445.0 Hz -> 440.0 Hz (A4)
+        // 0.0 Hz -> 0.0 Hz (silent)
+        // 220.0 Hz -> 220.0 Hz (A3)
+        // 880.0 Hz -> 880.0 Hz (A5)
+
+        assert!((snapped[0] - 440.0).abs() < 1.0);
+        assert!((snapped[1] - 440.0).abs() < 1.0);
+        assert!(snapped[2] == 0.0);
+        assert!((snapped[3] - 220.0).abs() < 1.0);
+        assert!((snapped[4] - 880.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_snap_to_scale_empty() {
+        let pyin_result = PYinResult {
+            f0: Array1::zeros(0),
+            voiced_flag: Array1::from_elem(0, false),
+            voiced_prob: Array1::zeros(0),
+        };
+
+        let key = Key {
+            root: Note::C,
+            scale: Scale::Major,
+        };
+
+        let snapped = pyin_result.snap_to_scale(key);
+        assert_eq!(snapped.len(), 0);
     }
 }

@@ -1,7 +1,6 @@
 use crate::audio::autotune::pyin::{PYinResult, pyin};
 use anyhow::Result;
 use hound::{WavSpec, WavWriter};
-use lame::Lame;
 use rodio::{Decoder, Source};
 use std::io;
 use std::path::Path;
@@ -29,7 +28,14 @@ impl AudioFile {
             pyin_result: None,
         })
     }
-
+    pub fn new(samples: Vec<f32>, sample_rate: u32, channels: u16) -> Self {
+        AudioFile {
+            samples,
+            sample_rate,
+            channels,
+            pyin_result: None,
+        }
+    }
     /// Save audio data to a WAV file
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let extension = path.as_ref().extension().and_then(|s| s.to_str());
@@ -76,10 +82,16 @@ impl AudioFile {
     }
 
     pub fn get_pyin_result(&mut self) -> &PYinResult {
+        println!("{}", self.pyin_result.is_none());
         if self.pyin_result.is_none() {
+            println!("Running pyin");
             self.run_pyin(2048, 256, 0.1, 0.2, 0.05);
         }
         self.pyin_result.as_ref().unwrap()
+    }
+    /// Get the number of channels in the audio
+    pub fn get_channels(&self) -> u16 {
+        self.channels
     }
 
     /// Get the audio samples as a slice

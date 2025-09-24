@@ -56,9 +56,6 @@ async fn main() -> anyhow::Result<()> {
     let mut file = audio::file::AudioFile::load(input).expect("Failed to load input file");
     println!("Loaded file with {} samples", file.get_n_samples());
 
-    file.run_pyin(2048, 256, 50.0, 2100.0, 0.1);
-    println!("Ran PYIN pitch detection");
-
     let f0 = file.get_pyin_result().f0.as_slice().unwrap();
     println!("Estimated f0 length: {}", f0.len());
 
@@ -69,17 +66,19 @@ async fn main() -> anyhow::Result<()> {
         file.get_samples(),
         &snapped_f0,
         file.get_sample_rate(),
-        500,
-        500,
-        50.0,
+        1000,
+        1000,
+        500.0,
         2100.0,
     );
     println!("Processed samples length: {}", processed_samples.len());
-    /*
-    let output_file = audio::file::AudioFile::new(processed_samples, file.get_spec());
+    let output_file = audio::file::AudioFile::new(
+        processed_samples,
+        file.get_sample_rate(),
+        file.get_channels(),
+    );
     output_file
         .save(&output)
         .expect("Failed to save output file");
-    */
     Ok(())
 }

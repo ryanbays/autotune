@@ -89,22 +89,18 @@ impl AudioFile {
         }
         self.pyin_result.as_ref().unwrap()
     }
-    /// Get the number of channels in the audio
     pub fn get_channels(&self) -> u16 {
         self.channels
     }
 
-    /// Get the audio samples as a slice
     pub fn get_samples(&self) -> &[f32] {
         &self.samples
     }
 
-    /// Get the sample rate of the audio
     pub fn get_sample_rate(&self) -> u32 {
         self.sample_rate
     }
 
-    /// Get the number of samples in the audio
     pub fn get_n_samples(&self) -> usize {
         self.samples.len()
     }

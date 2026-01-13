@@ -192,13 +192,6 @@ mod tests {
         // Snap frequencies to scale
         let snapped = pyin_result.snap_to_scale(key);
 
-        // Expected frequencies (approximately):
-        // 440.0 Hz -> 440.0 Hz (A4)
-        // 445.0 Hz -> 440.0 Hz (A4)
-        // 0.0 Hz -> 0.0 Hz (silent)
-        // 220.0 Hz -> 220.0 Hz (A3)
-        // 880.0 Hz -> 880.0 Hz (A5)
-
         assert!((snapped[0] - 440.0).abs() < 1.0);
         assert!((snapped[1] - 440.0).abs() < 1.0);
         assert!(snapped[2] == 0.0);

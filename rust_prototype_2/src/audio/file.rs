@@ -6,6 +6,7 @@ use rodio::{Decoder, Source};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 /// Audio file with interleaved samples:
 /// layout = [ch0_f0, ch1_f0, ..., ch{n-1}_f0, ch0_f1, ch1_f1, ...]
@@ -108,12 +109,7 @@ impl AudioFileData {
     }
     pub fn to_audio(&self) -> Audio {
         if self.n_channels == 1 {
-            return Audio {
-                sample_rate: self.sample_rate,
-                length: self.n_samples,
-                left: self.samples.clone(),
-                right: self.samples.clone(),
-            };
+            return Audio::new(self.sample_rate, self.samples.clone(), self.samples.clone());
         }
         let mut left = Vec::with_capacity(self.n_samples);
         let mut right = Vec::with_capacity(self.n_samples);
@@ -122,14 +118,9 @@ impl AudioFileData {
             left.push(self.samples[frame * self.n_channels]);
             right.push(self.samples[frame * self.n_channels + 1]);
         }
-
-        Audio {
-            sample_rate: self.sample_rate,
-            length: self.n_samples,
-            left,
-            right,
-        }
+        Audio::new(self.sample_rate, left, right)
     }
+
     pub fn n_channels(&self) -> usize {
         self.n_channels
     }

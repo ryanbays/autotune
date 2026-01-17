@@ -1,12 +1,20 @@
 use crate::autotune::{FRAME_LENGTH, HOP_LENGTH, MAX_F0, MIN_F0, PYIN_SIGMA, PYIN_THRESHOLD};
 
-pub struct PYINResult {
+#[derive(Debug, Clone)]
+pub struct PYINData {
     f0: Vec<f32>,
     voiced_flag: Vec<bool>,
     voiced_prob: Vec<f32>,
 }
 
-impl PYINResult {
+impl PYINData {
+    pub fn new(f0: Vec<f32>, voiced_flag: Vec<bool>, voiced_prob: Vec<f32>) -> Self {
+        Self {
+            f0,
+            voiced_flag,
+            voiced_prob,
+        }
+    }
     pub fn f0(&self) -> &Vec<f32> {
         &self.f0
     }
@@ -45,7 +53,7 @@ fn difference_function(frame: &[f32], max_lag: usize) -> Vec<f32> {
     d
 }
 fn cumulative_mean_normalized_difference(d: &[f32], max_lag: usize) -> Vec<f32> {
-    let mut cmnd = vec![0.0; d.len()];
+    let mut cmnd = vec![0.0; max_lag];
     let mut running_sum = 0.0;
 
     for tau in 1..max_lag {
@@ -92,7 +100,6 @@ fn find_pitch_candidates(
         if v < threshold && v < cmnd[tau - 1] && v <= cmnd[tau + 1] {
             found = true;
 
-            // collect this and maybe a couple neighbors
             let refined_tau = parabolic_interp(cmnd, tau);
             let f0 = sample_rate as f32 / refined_tau;
             let p = (1.0 - v).clamp(0.0, 1.0);
@@ -122,6 +129,7 @@ fn probabilistic_f0_selection(
     let mut best_f0_i: usize = 0;
     let mut continuity: f32;
     let mut score: f32;
+    let sigma2 = sigma * sigma;
 
     for i in 0..f0_candidates.len() {
         let candidate = f0_candidates[i];
@@ -136,14 +144,17 @@ fn probabilistic_f0_selection(
             }
         }
         let prob = candidate_probs[i];
-        continuity = 1.0;
-        if let Some(pf0) = previous_f0 {
+        let continuity = if let Some(pf0) = previous_f0 {
             if pf0 > 0.0 && candidate > 0.0 {
                 let ratio = candidate / pf0;
                 let octave_distance = ratio.log2();
-                continuity = (-0.5 * (octave_distance * octave_distance) / (sigma * sigma)).exp();
+                (-0.5 * (octave_distance * octave_distance) / sigma2).exp()
+            } else {
+                1.0
             }
-        }
+        } else {
+            1.0
+        };
         score = prob * continuity;
         if score > best_score {
             best_score = score;
@@ -164,16 +175,18 @@ pub fn pyin(
     fmax: Option<f32>,
     threshold: Option<f32>,
     sigma: Option<f32>,
-) -> PYINResult {
+) -> PYINData {
     let frame_length = frame_length.unwrap_or(FRAME_LENGTH);
     let hop_length = hop_length.unwrap_or(HOP_LENGTH);
     let fmin = fmin.unwrap_or(MIN_F0);
     let fmax = fmax.unwrap_or(MAX_F0);
+    let min_lag = (sample_rate as f32 / fmax).floor() as usize;
+    let max_lag = (sample_rate as f32 / fmin).ceil() as usize;
     let threshold = threshold.unwrap_or(PYIN_THRESHOLD);
     let sigma = sigma.unwrap_or(PYIN_SIGMA);
 
     if signal.len() < frame_length {
-        return PYINResult {
+        return PYINData {
             f0: Vec::new(),
             voiced_flag: Vec::new(),
             voiced_prob: Vec::new(),
@@ -205,9 +218,6 @@ pub fn pyin(
             previous_f0 = None;
             continue;
         }
-
-        let min_lag = (sample_rate as f32 / fmax).floor() as usize;
-        let max_lag = (sample_rate as f32 / fmin).ceil() as usize;
 
         if max_lag <= min_lag + 2 || max_lag >= frame_length {
             f0[i] = 0.0;
@@ -243,7 +253,7 @@ pub fn pyin(
         voiced_prob[i] = final_prob;
     }
 
-    PYINResult {
+    PYINData {
         f0,
         voiced_flag,
         voiced_prob,

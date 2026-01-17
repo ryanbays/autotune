@@ -1,6 +1,6 @@
-use crate::audio::autotune::{FRAME_LENGTH, HOP_LENGTH, pyin::PYINResult};
+use crate::audio::autotune::{FRAME_LENGTH, HOP_LENGTH, pyin::PYINData};
 
-fn find_pitch_marks(pyin: &PYINResult, sample_rate: u32) -> Vec<usize> {
+fn find_pitch_marks(pyin: &PYINData, sample_rate: u32) -> Vec<usize> {
     let mut pitch_marks = Vec::new();
     let mut pos = 0.0_f32;
     for i in 0..pyin.f0().len() {
@@ -22,7 +22,7 @@ fn find_pitch_marks(pyin: &PYINResult, sample_rate: u32) -> Vec<usize> {
 }
 
 fn compute_target_pitch_spacing(
-    pyin_result: &PYINResult,
+    pyin_result: &PYINData,
     target_f0: &Vec<f32>,
     pitch_marks: &Vec<usize>,
     sample_rate: u32,
@@ -59,6 +59,14 @@ fn overlap_add(
     let mut output = vec![0.0; output_length];
     let half_frame = frame_size / 2;
 
+    // Precompute a Hann window (AI written)
+    let window: Vec<f32> = (0..frame_size)
+        .map(|n| {
+            let x = std::f32::consts::PI * 2.0 * n as f32 / (frame_size as f32 - 1.0);
+            0.5 * (1.0 - x.cos())
+        })
+        .collect();
+
     for i in 0..pitch_marks.len().min(shifted_marks.len()) {
         let orig_pos = pitch_marks[i];
         let new_pos = shifted_marks[i];
@@ -72,8 +80,11 @@ fn overlap_add(
         let max_len_new = end_new.saturating_sub(start_new);
         let len = max_len_orig.min(max_len_new);
 
+        // Align window indices with the current frame segment
+        let win_start = half_frame.saturating_sub(orig_pos.saturating_sub(start_orig));
         for j in 0..len {
-            output[start_new + j] += audio[start_orig + j];
+            let w = window[win_start + j];
+            output[start_new + j] += audio[start_orig + j] * w;
         }
     }
 
@@ -83,7 +94,7 @@ fn overlap_add(
 pub fn psola(
     audio: &Vec<f32>,
     sample_rate: u32,
-    pyin_result: &PYINResult,
+    pyin_result: &PYINData,
     target_f0: &Vec<f32>,
     frame_size: Option<usize>,
     hop_size: Option<usize>,
@@ -102,14 +113,14 @@ pub fn psola(
 mod tests {
     use super::*;
 
-    // Minimal mock for PYINResult, adjust to match your real type
-    struct MockPYINResult {
+    // Minimal mock for PYINData, adjust to match your real type
+    struct MockPYINData {
         f0: Vec<f32>,
         voiced_prob: Vec<f32>,
         voiced_flag: Vec<bool>,
     }
 
-    impl MockPYINResult {
+    impl MockPYINData {
         fn new(f0: Vec<f32>, voiced_prob: Vec<f32>, voiced_flag: Vec<bool>) -> Self {
             Self {
                 f0,
@@ -119,8 +130,8 @@ mod tests {
         }
     }
 
-    // Implement the same API as PYINResult that is used above
-    impl MockPYINResult {
+    // Implement the same API as PYINData that is used above
+    impl MockPYINData {
         fn f0(&self) -> &Vec<f32> {
             &self.f0
         }
@@ -141,7 +152,7 @@ mod tests {
     }
 
     trait HasPYINApi {
-        fn as_pyin(&self) -> &PYINResult;
+        fn as_pyin(&self) -> &PYINData;
     }
 
     #[test]
@@ -152,7 +163,7 @@ mod tests {
         let voiced_prob = vec![1.0; 3];
         let voiced_flag = vec![true; 3];
 
-        // We can't actually construct a real PYINResult here easily,
+        // We can't actually construct a real PYINData here easily,
         // so just assert the math via expected periodicity:
         // period = sample_rate / f0 = 1000 / 100 = 10 samples
         let period = (sample_rate as f32 / f0[0]) as usize;
@@ -163,13 +174,13 @@ mod tests {
 
     #[test]
     fn test_compute_target_pitch_spacing_preserves_spacing_when_same_f0() {
-        // This test checks the formula, independent of real PYINResult
+        // This test checks the formula, independent of real PYINData
         let pitch_marks = vec![0, 100, 200, 300];
         let f0 = vec![100.0; pitch_marks.len()];
         let voiced_flag = vec![true; pitch_marks.len()];
         let voiced_prob = vec![1.0; pitch_marks.len()];
 
-        // Mock type with same API as PYINResult for this test
+        // Mock type with same API as PYINData for this test
         struct LocalPYIN {
             f0: Vec<f32>,
             voiced_prob: Vec<f32>,
@@ -194,7 +205,7 @@ mod tests {
         };
         let target_f0 = vec![100.0; pitch_marks.len()];
 
-        // Reuse the logic manually since compute_target_pitch_spacing expects PYINResult
+        // Reuse the logic manually since compute_target_pitch_spacing expects PYINData
         let mut shifted = Vec::new();
         shifted.push(pitch_marks[0]);
         for i in 1..pitch_marks.len() {
@@ -237,7 +248,7 @@ mod tests {
         let voiced_prob = vec![1.0; 4];
         let voiced_flag = vec![true; 4];
 
-        // Dummy PYINResult-like struct just to satisfy type; adapt as needed
+        // Dummy PYINData-like struct just to satisfy type; adapt as needed
         struct DummyPYIN {
             f0: Vec<f32>,
             voiced_prob: Vec<f32>,
@@ -262,7 +273,7 @@ mod tests {
         };
         let target_f0 = f0;
 
-        // You will need to change this to a real PYINResult instance,
+        // You will need to change this to a real PYINData instance,
         // this test is a template for wiring.
         // let output = psola(&audio, sample_rate, &pyin_result, &target_f0, None, None);
 

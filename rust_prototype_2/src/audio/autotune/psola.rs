@@ -1,22 +1,21 @@
 use crate::audio::autotune::{FRAME_LENGTH, HOP_LENGTH, pyin::PYINResult};
 
-fn find_pitch_marks(pyin_result: &PYINResult, sample_rate: u32) -> Vec<usize> {
+fn find_pitch_marks(pyin: &PYINResult, sample_rate: u32) -> Vec<usize> {
     let mut pitch_marks = Vec::new();
-    let f0 = pyin_result.f0();
-    let voiced_prob = pyin_result.voiced_prob();
-    let voiced_flag = pyin_result.voiced_flag();
-    for i in 0..f0.len() {
-        if voiced_prob[i] == 0.0 || !voiced_flag[i] {
+    let mut pos = 0.0_f32;
+    for i in 0..pyin.f0().len() {
+        if !pyin.voiced_flag()[i] || pyin.f0()[i] <= 0.0 {
             continue;
         }
-        let period = (sample_rate as f32 / f0[i]) as usize;
+        let period = sample_rate as f32 / pyin.f0()[i];
         let frame_start = i * HOP_LENGTH;
-        let num_pulses = FRAME_LENGTH / period;
-        for j in 0..num_pulses {
-            let pulse_pos = frame_start + j * period;
-            if pulse_pos < frame_start + FRAME_LENGTH {
-                pitch_marks.push(pulse_pos);
-            }
+        if pos < frame_start as f32 {
+            pos = frame_start as f32;
+        }
+
+        while pos < (frame_start + FRAME_LENGTH) as f32 {
+            pitch_marks.push(pos.round() as usize);
+            pos += period;
         }
     }
     pitch_marks
@@ -34,8 +33,7 @@ fn compute_target_pitch_spacing(
     }
     shifted_marks.push(pitch_marks[0]);
     for i in 1..pitch_marks.len() as usize {
-        let mut frame_index = pitch_marks[i] / HOP_LENGTH;
-        frame_index = frame_index.min(pitch_marks.len() - 1);
+        let frame_index = (pitch_marks[i] / HOP_LENGTH).min(pyin_result.f0().len() - 1);
         if frame_index >= pyin_result.f0().len() {
             break;
         }
@@ -43,11 +41,7 @@ fn compute_target_pitch_spacing(
             shifted_marks.push(shifted_marks[i - 1] + (pitch_marks[i] - pitch_marks[i - 1]));
             continue;
         }
-        let old_spacing = if pitch_marks[i] >= pitch_marks[i - 1] {
-            pitch_marks[i] - pitch_marks[i - 1]
-        } else {
-            shifted_marks[i - 1] - shifted_marks[i - 2]
-        };
+        let old_spacing = pitch_marks[i] - pitch_marks[i - 1];
         let new_spacing =
             old_spacing as f32 * (target_f0[frame_index] / pyin_result.f0()[frame_index]);
         shifted_marks.push(shifted_marks[i - 1] + new_spacing as usize);
@@ -61,11 +55,11 @@ fn overlap_add(
     shifted_marks: &Vec<usize>,
     frame_size: usize,
 ) -> Vec<f32> {
-    let mut output_length = *shifted_marks.last().unwrap() + frame_size;
+    let mut output_length = (*shifted_marks.last().unwrap() + frame_size).min(audio.len() * 2);
     let mut output = vec![0.0; output_length];
     let half_frame = frame_size / 2;
 
-    for i in 0..pitch_marks.len() {
+    for i in 0..pitch_marks.len().min(shifted_marks.len()) {
         let orig_pos = pitch_marks[i];
         let new_pos = shifted_marks[i];
 

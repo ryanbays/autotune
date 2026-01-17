@@ -30,27 +30,25 @@ fn frame_rms(frame: &[f32]) -> f32 {
     (sum_sq / frame.len() as f32).sqrt()
 }
 
-fn difference_function(frame: &[f32], min_lag: usize, max_lag: usize) -> Vec<f32> {
-    let frame_length = frame.len();
-    let mut d = vec![0.0; frame_length];
+fn difference_function(frame: &[f32], max_lag: usize) -> Vec<f32> {
+    let n = frame.len();
+    let mut d = vec![0.0; max_lag];
 
-    for tau in min_lag..max_lag {
+    for tau in 1..max_lag {
         let mut acc = 0.0;
-        for n in 0..(frame_length - tau) {
-            let diff = frame[n] - frame[n + tau];
+        for i in 0..(n - tau) {
+            let diff = frame[i] - frame[i + tau];
             acc += diff * diff;
         }
         d[tau] = acc;
     }
-
     d
 }
-
-fn cumulative_mean_normalized_difference(d: &[f32], min_lag: usize, max_lag: usize) -> Vec<f32> {
+fn cumulative_mean_normalized_difference(d: &[f32], max_lag: usize) -> Vec<f32> {
     let mut cmnd = vec![0.0; d.len()];
     let mut running_sum = 0.0;
 
-    for tau in min_lag..max_lag {
+    for tau in 1..max_lag {
         running_sum += d[tau];
         cmnd[tau] = if running_sum > 0.0 {
             d[tau] * (tau as f32) / running_sum
@@ -62,6 +60,18 @@ fn cumulative_mean_normalized_difference(d: &[f32], min_lag: usize, max_lag: usi
     cmnd
 }
 
+fn parabolic_interp(cmnd: &[f32], tau: usize) -> f32 {
+    let x0 = cmnd[tau - 1];
+    let x1 = cmnd[tau];
+    let x2 = cmnd[tau + 1];
+    let denom = 2.0 * (2.0 * x1 - x2 - x0);
+    if denom.abs() < 1e-9 {
+        tau as f32
+    } else {
+        tau as f32 + (x2 - x0) / denom
+    }
+}
+
 fn find_pitch_candidates(
     cmnd: &[f32],
     threshold: f32,
@@ -69,38 +79,34 @@ fn find_pitch_candidates(
     max_lag: usize,
     sample_rate: u32,
 ) -> (Vec<f32>, Vec<f32>) {
-    let mut f0_candidates = Vec::new();
-    let mut candidate_probs = Vec::new();
+    let mut f0s = Vec::new();
+    let mut ps = Vec::new();
 
-    // Track best (smallest) CMND within the search region, tie‑breaking by
-    // smallest tau (i.e. highest f0) to discourage subharmonic locking.
-    let mut best_tau: Option<usize> = None;
-    let mut best_val: f32 = f32::INFINITY;
+    let mut found = false;
+    for tau in (min_lag + 1)..(max_lag - 1) {
+        if found {
+            break;
+        }
 
-    if max_lag > min_lag + 2 {
-        for tau in (min_lag + 1)..(max_lag - 1) {
-            let val = cmnd[tau];
-            if val < threshold && val < cmnd[tau - 1] && val < cmnd[tau + 1] {
-                if val < best_val || (val == best_val && best_tau.map_or(true, |bt| tau < bt)) {
-                    best_val = val;
-                    best_tau = Some(tau);
-                }
-            }
+        let v = cmnd[tau];
+        if v < threshold && v < cmnd[tau - 1] && v <= cmnd[tau + 1] {
+            found = true;
+
+            // collect this and maybe a couple neighbors
+            let refined_tau = parabolic_interp(cmnd, tau);
+            let f0 = sample_rate as f32 / refined_tau;
+            let p = (1.0 - v).clamp(0.0, 1.0);
+
+            f0s.push(f0);
+            ps.push(p);
         }
     }
 
-    if let Some(tau) = best_tau {
-        let f0 = sample_rate as f32 / tau as f32;
-        let prob = 1.0 - best_val;
-        f0_candidates.push(f0);
-        candidate_probs.push(prob);
+    if f0s.is_empty() {
+        (vec![0.0], vec![0.0])
     } else {
-        // No suitable candidate found
-        f0_candidates.push(0.0);
-        candidate_probs.push(0.0);
+        (f0s, ps)
     }
-
-    (f0_candidates, candidate_probs)
 }
 
 fn probabilistic_f0_selection(
@@ -118,11 +124,22 @@ fn probabilistic_f0_selection(
     let mut score: f32;
 
     for i in 0..f0_candidates.len() {
+        let candidate = f0_candidates[i];
+
+        // Hard octave / subharmonic guard
+        if let Some(pf0) = previous_f0 {
+            if pf0 > 0.0 {
+                let ratio = candidate / pf0;
+                if ratio < 0.7 || ratio > 1.5 {
+                    continue; // skip this candidate entirely
+                }
+            }
+        }
         let prob = candidate_probs[i];
         continuity = 1.0;
         if let Some(pf0) = previous_f0 {
-            if pf0 > 0.0 && f0_candidates[i] > 0.0 {
-                let ratio = f0_candidates[i] / pf0;
+            if pf0 > 0.0 && candidate > 0.0 {
+                let ratio = candidate / pf0;
                 let octave_distance = ratio.log2();
                 continuity = (-0.5 * (octave_distance * octave_distance) / (sigma * sigma)).exp();
             }
@@ -133,7 +150,8 @@ fn probabilistic_f0_selection(
             best_f0_i = i;
         }
     }
-    let voiced_flag = best_score > 0.0;
+    // WARNING: Need to add threshold as a parameter to control voiced/unvoiced decision
+    let voiced_flag = best_score > 0.5;
     (f0_candidates[best_f0_i], voiced_flag, best_score)
 }
 
@@ -171,7 +189,7 @@ pub fn pyin(
 
     // Simple global RMS to derive a silence threshold.
     let global_rms = frame_rms(signal);
-    let silence_rms_threshold = global_rms * 0.05;
+    let silence_rms_threshold = global_rms * 0.02 + 1e-6;
 
     for i in 0..n_frames {
         let start = i * hop_length;
@@ -199,8 +217,8 @@ pub fn pyin(
             continue;
         }
 
-        let d = difference_function(frame, min_lag, max_lag);
-        let cmnd = cumulative_mean_normalized_difference(&d, min_lag, max_lag);
+        let d = difference_function(frame, max_lag);
+        let cmnd = cumulative_mean_normalized_difference(&d, max_lag);
         let (f0_candidates, candidate_probs) =
             find_pitch_candidates(&cmnd, threshold, min_lag, max_lag, sample_rate);
         let (best_f0, is_voiced, best_prob) =
@@ -248,7 +266,7 @@ mod tests {
         let frame = vec![1.0, 2.0, 3.0, 4.0];
         let min_lag = 1;
         let max_lag = 3;
-        let d = difference_function(&frame, min_lag, max_lag);
+        let d = difference_function(&frame, max_lag);
 
         // d[1] = (1-2)^2 + (2-3)^2 + (3-4)^2 = 3
         assert!((d[1] - 3.0).abs() < 1e-6);
@@ -261,7 +279,7 @@ mod tests {
         let d = vec![0.0, 1.0, 2.0, 3.0, 4.0];
         let min_lag = 1;
         let max_lag = 5;
-        let cmnd = cumulative_mean_normalized_difference(&d, min_lag, max_lag);
+        let cmnd = cumulative_mean_normalized_difference(&d, max_lag);
 
         // CMND is defined only from min_lag..max_lag
         // Check that it is finite and non‑negative
@@ -673,4 +691,3 @@ mod tests {
         assert!(PYIN_SIGMA > 0.0);
     }
 }
-

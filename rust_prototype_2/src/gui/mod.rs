@@ -1,5 +1,3 @@
-use egui::emath::easing::quadratic_in;
-
 pub mod app;
 
 pub fn run() -> Result<(), eframe::Error> {

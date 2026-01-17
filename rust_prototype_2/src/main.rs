@@ -6,6 +6,7 @@ use tokio::{sync::mpsc, time::sleep};
 #[allow(dead_code, unused)]
 mod audio;
 mod gui;
+use crate::audio::autotune;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

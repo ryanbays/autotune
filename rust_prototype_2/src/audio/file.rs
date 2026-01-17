@@ -25,7 +25,6 @@ impl AudioFileData {
         let sample_rate = source.sample_rate();
         let n_channels = source.channels() as usize;
 
-        // Convert to f32 explicitly
         let samples: Vec<f32> = source.map(Sample::to_sample::<f32>).collect();
 
         if n_channels == 0 {
@@ -55,7 +54,7 @@ impl AudioFileData {
     }
 
     // Construct from already-interleaved samples.
-    // WARNING: This honestly might not be needed.
+    // NOTE: This function could be unnecessary if we always use `load` to read from files.
     // `samples` layout must be: [ch0_f0, ch1_f0, ..., ch{n-1}_f0, ch0_f1, ...].
     pub fn new(samples: Vec<f32>, sample_rate: u32, channels: u16) -> Result<Self> {
         if channels == 0 {
@@ -133,5 +132,26 @@ impl AudioFileData {
     }
     pub fn n_channels(&self) -> usize {
         self.n_channels
+    }
+
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    pub fn n_samples(&self) -> usize {
+        self.n_samples
+    }
+
+    /// Total number of interleaved sample values (frames * channels).
+    pub fn len_samples_raw(&self) -> usize {
+        self.samples.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.samples.is_empty()
+    }
+
+    pub fn samples(&self) -> &[f32] {
+        &self.samples
     }
 }

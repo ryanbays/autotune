@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 pub enum AudioCommand {
     SendAudio(Audio),
+    ClearBuffer,
     Play,
     Stop,
     SetVolume(f32),
@@ -91,7 +92,7 @@ impl AudioController {
         output: &mut [f32],
         channels: usize,
     ) {
-        // Never panic in audio callback
+        // Panicking out of a callback is bad, so handle mutex poisoning gracefully
         let audio_lock = match audio_for_callback.lock() {
             Ok(g) => g,
             Err(e) => {
@@ -141,6 +142,7 @@ impl AudioController {
         if !is_playing {
             return;
         }
+        /*
         eprintln!(
             "fill_output_buffer: len={} channels={} pos={} playing={} vol={}",
             output.len(),
@@ -149,6 +151,7 @@ impl AudioController {
             is_playing,
             vol,
         );
+        */
 
         if let Some(audio) = &*audio_lock {
             let left = &audio.left;
@@ -187,10 +190,25 @@ impl AudioController {
     pub async fn run(&mut self) {
         while let Some(command) = self.receiver.recv().await {
             match command {
+                // Adding audio to the buffer without overwriting it or starting playback
+                // Also checking that the stereo channels have the same length
                 AudioCommand::SendAudio(data) => {
-                    *self.audio.lock().unwrap() = Some(data);
-                    *self.position.lock().unwrap() = 0;
-                    // Do not start playing automatically
+                    let mut audio_lock = self.audio.lock().unwrap();
+
+                    match &mut *audio_lock {
+                        Some(existing) => {
+                            // Ensure channels have same length
+                            assert_eq!(existing.left.len(), existing.right.len());
+                            assert_eq!(data.left.len(), data.right.len());
+
+                            existing.left.extend_from_slice(&data.left);
+                            existing.right.extend_from_slice(&data.right);
+                        }
+                        None => {
+                            *audio_lock = Some(data);
+                            *self.position.lock().unwrap() = 0;
+                        }
+                    }
                 }
                 AudioCommand::Play => {
                     println!("AudioController: Play command received");
@@ -203,6 +221,10 @@ impl AudioController {
                 }
                 AudioCommand::SetVolume(volume) => {
                     *self.volume.lock().unwrap() = volume;
+                }
+                AudioCommand::ClearBuffer => {
+                    *self.audio.lock().unwrap() = None;
+                    *self.position.lock().unwrap() = 0;
                 }
                 AudioCommand::Shutdown => break,
             }

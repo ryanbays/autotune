@@ -1,4 +1,5 @@
 pub mod audio_controller;
+pub mod autotune;
 pub mod file;
 
 #[derive(Clone, Debug)]

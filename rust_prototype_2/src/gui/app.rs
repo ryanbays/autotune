@@ -25,8 +25,16 @@ impl Default for App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_zoom_factor(1.5);
+        let panel_frame = egui::Frame {
+            fill: ctx.style().visuals.window_fill(),
+            corner_radius: 5.0.into(),
+            stroke: ctx.style().visuals.widgets.noninteractive.fg_stroke,
+            outer_margin: 0.5.into(),
+            inner_margin: 7.5.into(),
+            ..Default::default()
+        };
         self.titlebar.show(ctx, self.track_manager_sender.clone());
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().frame(panel_frame).show(ctx, |ui| {
             ui.style_mut().interaction.selectable_labels = false;
             self.track_manager.show(ctx);
         });

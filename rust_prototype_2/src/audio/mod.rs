@@ -3,6 +3,7 @@ pub mod autotune;
 pub mod file;
 use crate::audio::autotune::pyin::{self, PYINData};
 use std::sync::{Arc, RwLock};
+use tracing::{debug, info};
 
 #[derive(Clone, Debug)]
 pub struct Audio {
@@ -51,6 +52,27 @@ impl Audio {
         self.pyin.read().ok().and_then(|g| g.clone())
     }
 
+    pub fn get_pyin_blocking(&self) -> Option<PYINData> {
+        use std::thread;
+        use std::time::Duration;
+
+        loop {
+            match self.pyin.read() {
+                Ok(guard) => {
+                    if let Some(data) = guard.clone() {
+                        return Some(data);
+                    }
+                }
+                Err(e) => {
+                    info!("Failed to acquire PYIN read lock: {:?}", e);
+                    return None;
+                }
+            }
+            // Avoid busy-waiting
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
     /// Expose shared handle if callers want to manage locking themselves.
     /// NOTE: Might be an unnecessary function.
     pub fn pyin_handle(&self) -> Arc<RwLock<Option<PYINData>>> {
@@ -63,8 +85,8 @@ impl Audio {
         rt.block_on(self.perform_pyin_async());
     }
 
-    /// Asynchronous pyin computation using tokio::task::spawn_blocking.
     pub async fn perform_pyin_async(&mut self) {
+        debug!("Async perform PYIN called");
         let stereo = self.compute_pyin_async().await;
         if let Ok(mut guard) = self.pyin.write() {
             *guard = Some(stereo);
@@ -78,9 +100,15 @@ impl Audio {
         let sample_rate = self.sample_rate;
 
         tokio::task::spawn_blocking(move || {
+            debug!("Starting PYIN analysis for both channels asynchronously");
             let (left_pyin, right_pyin) = rayon::join(
                 || pyin::pyin(&left, sample_rate, None, None, None, None, None, None),
                 || pyin::pyin(&right, sample_rate, None, None, None, None, None, None),
+            );
+            debug!(
+                right_len = right_pyin.f0().len(),
+                left_len = left_pyin.f0().len(),
+                "Completed PYIN analysis for both channels"
             );
             // Combine results based on highest probabilty of voicing
             let length = left_pyin.f0().len().max(right_pyin.f0().len());
@@ -100,6 +128,7 @@ impl Audio {
                     prob[i] = right_prob;
                 }
             }
+            debug!("Combined PYIN data from both channels");
             PYINData::new(f0, voiced_flags, prob)
         })
         .await

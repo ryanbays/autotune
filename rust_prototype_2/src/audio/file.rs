@@ -5,16 +5,18 @@ use hound::{WavSpec, WavWriter};
 use rodio::{Decoder, Source};
 use std::fs::File;
 use std::io::BufReader;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 /// Audio file with interleaved samples:
 /// layout = [ch0_f0, ch1_f0, ..., ch{n-1}_f0, ch0_f1, ch1_f1, ...]
+#[derive(Clone, Debug)]
 pub struct AudioFileData {
     samples: Vec<f32>,
     n_samples: usize,
     sample_rate: u32,
     n_channels: usize,
+    pub file_path: PathBuf,
 }
 
 impl AudioFileData {
@@ -51,6 +53,7 @@ impl AudioFileData {
             sample_rate,
             n_samples,
             n_channels,
+            file_path: path.as_ref().to_path_buf(),
         })
     }
 
@@ -77,6 +80,7 @@ impl AudioFileData {
             sample_rate,
             n_channels,
             n_samples,
+            file_path: PathBuf::new(),
         })
     }
 

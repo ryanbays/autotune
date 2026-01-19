@@ -1,4 +1,5 @@
 use crate::autotune::{FRAME_LENGTH, HOP_LENGTH, MAX_F0, MIN_F0, PYIN_SIGMA, PYIN_THRESHOLD};
+use tracing::{debug, info};
 
 #[derive(Debug, Clone)]
 pub struct PYINData {
@@ -184,6 +185,10 @@ pub fn pyin(
     let max_lag = (sample_rate as f32 / fmin).ceil() as usize;
     let threshold = threshold.unwrap_or(PYIN_THRESHOLD);
     let sigma = sigma.unwrap_or(PYIN_SIGMA);
+    debug!(
+        frame_length,
+        hop_length, fmin, fmax, min_lag, max_lag, threshold, sigma, "PYIN parameters"
+    );
 
     if signal.len() < frame_length {
         return PYINData {
@@ -203,7 +208,6 @@ pub fn pyin(
     // Simple global RMS to derive a silence threshold.
     let global_rms = frame_rms(signal);
     let silence_rms_threshold = global_rms * 0.02 + 1e-6;
-
     for i in 0..n_frames {
         let start = i * hop_length;
         let end = start + frame_length;

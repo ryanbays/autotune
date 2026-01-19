@@ -1,4 +1,5 @@
 use crate::audio::autotune::{FRAME_LENGTH, HOP_LENGTH, pyin::PYINData};
+use tracing::{debug, info};
 
 fn find_pitch_marks(pyin: &PYINData, sample_rate: u32) -> Vec<usize> {
     let mut pitch_marks = Vec::new();
@@ -101,11 +102,18 @@ pub fn psola(
 ) -> Vec<f32> {
     let frame_size = frame_size.unwrap_or(FRAME_LENGTH);
     let hop_size = hop_size.unwrap_or(HOP_LENGTH);
-
+    debug!(
+        frame_size,
+        hop_size,
+        n_samples = audio.len(),
+        "Starting PSOLA pitch shifting"
+    );
     let pitch_marks = find_pitch_marks(pyin_result, sample_rate);
     let shifted_marks =
         compute_target_pitch_spacing(pyin_result, target_f0, &pitch_marks, sample_rate);
-    overlap_add(audio, &pitch_marks, &shifted_marks, frame_size)
+    let output = overlap_add(audio, &pitch_marks, &shifted_marks, frame_size);
+    debug!(n_samples = output.len(), "Completed PSOLA pitch shifting");
+    output
 }
 
 // AI written tests

@@ -1,6 +1,7 @@
 use crate::audio::{Audio, interleave_stereo};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::{Arc, Mutex};
+use tracing::{debug, error, info};
 
 pub enum AudioCommand {
     SendAudio(Audio),
@@ -26,16 +27,16 @@ impl AudioController {
         initial_audio: Option<Audio>,
     ) -> anyhow::Result<Self> {
         let host = cpal::default_host();
-        println!("Using audio host: {:?}", host.id());
+        debug!(audio_host = ?host.id(), "Using audio host");
         let device = host
             .default_output_device()
             .ok_or_else(|| anyhow::anyhow!("No output device available"))?;
         let supported_config = device.default_output_config()?;
-        println!("Default output config: {:?}", supported_config);
+        debug!("Default output config: {:?}", supported_config);
         let sample_format = supported_config.sample_format();
         let mut config = supported_config.config();
         config.buffer_size = cpal::BufferSize::Fixed(512);
-        println!("CPAL StreamConfig: {:?}", config);
+        debug!("CPAL StreamConfig: {:?}", config);
         let channels = config.channels as usize;
         if channels != 2 {
             return Err(anyhow::anyhow!("expected stereo output, got {channels}"));
@@ -65,7 +66,7 @@ impl AudioController {
                     );
                 },
                 move |err| {
-                    eprintln!("CPAL stream error: {err}");
+                    info!("CPAL stream error: {err}");
                 },
                 None,
             )?,
@@ -96,7 +97,7 @@ impl AudioController {
         let audio_lock = match audio_for_callback.lock() {
             Ok(g) => g,
             Err(e) => {
-                eprintln!("audio_for_callback mutex poisoned: {e}");
+                error!("audio_for_callback mutex poisoned: {e}");
                 for s in output.iter_mut() {
                     *s = 0.0;
                 }
@@ -106,7 +107,7 @@ impl AudioController {
         let mut pos = match shared_position.lock() {
             Ok(g) => g,
             Err(e) => {
-                eprintln!("shared_position mutex poisoned: {e}");
+                error!("shared_position mutex poisoned: {e}");
                 for s in output.iter_mut() {
                     *s = 0.0;
                 }
@@ -116,7 +117,7 @@ impl AudioController {
         let vol = match shared_volume.lock() {
             Ok(g) => *g,
             Err(e) => {
-                eprintln!("shared_volume mutex poisoned: {e}");
+                error!("shared_volume mutex poisoned: {e}");
                 for s in output.iter_mut() {
                     *s = 0.0;
                 }
@@ -126,7 +127,7 @@ impl AudioController {
         let is_playing = match playing.lock() {
             Ok(g) => *g,
             Err(e) => {
-                eprintln!("playing mutex poisoned: {e}");
+                error!("playing mutex poisoned: {e}");
                 for s in output.iter_mut() {
                     *s = 0.0;
                 }
@@ -143,7 +144,7 @@ impl AudioController {
             return;
         }
         /*
-        eprintln!(
+        info!(
             "fill_output_buffer: len={} channels={} pos={} playing={} vol={}",
             output.len(),
             channels,
@@ -181,7 +182,7 @@ impl AudioController {
 
             *pos += frames_to_write;
 
-            if *pos >= left.len().min(right.len()) {
+            if *pos > left.len().min(right.len()) {
                 *pos = 0;
             }
         }
@@ -193,6 +194,7 @@ impl AudioController {
                 // Adding audio to the buffer without overwriting it or starting playback
                 // Also checking that the stereo channels have the same length
                 AudioCommand::SendAudio(data) => {
+                    debug!("AudioController: SendAudio command received");
                     let mut audio_lock = self.audio.lock().unwrap();
 
                     match &mut *audio_lock {
@@ -211,22 +213,28 @@ impl AudioController {
                     }
                 }
                 AudioCommand::Play => {
-                    println!("AudioController: Play command received");
+                    debug!("AudioController: Play command received");
                     *self.position.lock().unwrap() = 0;
                     *self.playing.lock().unwrap() = true;
                 }
                 AudioCommand::Stop => {
+                    debug!("AudioController: Stop command received");
                     *self.playing.lock().unwrap() = false;
                     *self.position.lock().unwrap() = 0;
                 }
                 AudioCommand::SetVolume(volume) => {
+                    debug!("AudioController: SetVolume command received: {}", volume);
                     *self.volume.lock().unwrap() = volume;
                 }
                 AudioCommand::ClearBuffer => {
+                    debug!("AudioController: ClearBuffer command received");
                     *self.audio.lock().unwrap() = None;
                     *self.position.lock().unwrap() = 0;
                 }
-                AudioCommand::Shutdown => break,
+                AudioCommand::Shutdown => {
+                    debug!("AudioController: Shutdown command received");
+                    break;
+                }
             }
         }
     }

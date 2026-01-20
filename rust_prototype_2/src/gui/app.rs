@@ -1,23 +1,34 @@
 use crate::gui::components;
+use anyhow::Result;
 use eframe::egui;
+use tokio::sync::mpsc;
 
 pub struct App {
     titlebar: components::titlebar::TitleBar,
     track_manager: components::track::TrackManager,
-    track_manager_sender: std::sync::mpsc::Sender<components::track::TrackManagerCommand>,
+    track_manager_sender: mpsc::Sender<components::track::TrackManagerCommand>,
+    audio_controller: crate::audio::audio_controller::AudioController,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        let mut track_manager = components::track::TrackManager::new();
+impl App {
+    pub fn new() -> Self {
+        let (tx, rx) = mpsc::channel::<crate::audio::audio_controller::AudioCommand>(100);
+        let result = crate::audio::audio_controller::AudioController::new(rx, None);
+        let audio_controller = match result {
+            Ok(controller) => controller,
+            Err(e) => {
+                panic!("Failed to initialize AudioController: {}", e);
+            }
+        };
+        let mut track_manager = components::track::TrackManager::new(tx.clone());
         track_manager.add_track(); // Add an initial track
-        let (sender, receiver) =
-            std::sync::mpsc::channel::<components::track::TrackManagerCommand>();
+        let (sender, receiver) = mpsc::channel::<components::track::TrackManagerCommand>(100);
         track_manager.set_receiver(receiver);
         Self {
             titlebar: components::titlebar::TitleBar::new("Autotune"),
             track_manager,
             track_manager_sender: sender,
+            audio_controller,
         }
     }
 }

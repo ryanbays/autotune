@@ -2,7 +2,7 @@ use crate::audio::file;
 use crate::gui::components::track;
 use eframe::egui::{self, Color32, Sense, Stroke};
 use egui::TopBottomPanel;
-use std::sync::mpsc;
+use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 pub struct TitleBar {
@@ -38,7 +38,7 @@ impl TitleBar {
                                 match file::AudioFileData::load(&path) {
                                     Ok(audio_data) => {
                                         info!("Loaded audio file: {:?}", path);
-                                        if let Err(e) = track_manager_sender.send(
+                                        if let Err(e) = track_manager_sender.try_send(
                                             track::TrackManagerCommand::AddAudioClip(audio_data),
                                         ) {
                                             error!(

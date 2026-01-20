@@ -1,4 +1,6 @@
-use crate::autotune::{FRAME_LENGTH, HOP_LENGTH, MAX_F0, MIN_F0, PYIN_SIGMA, PYIN_THRESHOLD};
+use crate::audio::autotune::{
+    FRAME_LENGTH, HOP_LENGTH, MAX_F0, MIN_F0, PYIN_SIGMA, PYIN_THRESHOLD,
+};
 use tracing::{debug, info};
 
 #[derive(Debug, Clone)]

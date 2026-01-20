@@ -13,7 +13,7 @@ pub fn run() -> Result<(), eframe::Error> {
     eframe::run_native(
         "My App",
         options,
-        Box::new(|_cc| Ok(Box::new(app::App::default()))),
+        Box::new(|_cc| Ok(Box::new(app::App::new()))),
     )?;
     Ok(())
 }

@@ -1,7 +1,7 @@
-use crate::audio::{Audio, file::AudioFileData};
+use crate::audio::{Audio, audio_controller::{AudioController, AudioCommand}, file::AudioFileData};
 use egui::Sense;
-use std::sync::mpsc;
-use tracing::{debug, info};
+use tokio::sync::mpsc;
+use tracing::{debug, info, error};
 
 const SAMPLES_PER_PIXEL: f32 = 250.0;
 
@@ -19,17 +19,19 @@ pub struct TrackManager {
     audio_files: Vec<AudioFileData>,
     receiver: mpsc::Receiver<TrackManagerCommand>,
     zoom_level: f32,
+    audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>,
 }
 
 impl TrackManager {
-    pub fn new() -> Self {
+    pub fn new(audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>) -> Self {
         TrackManager {
             horizontal_scroll: 0.0,
             tracks: Vec::new(),
             next_id: 1,
             audio_files: Vec::new(),
-            receiver: mpsc::channel().1,
+            receiver: mpsc::channel(1).1,
             zoom_level: 1.0,
+            audio_controller_sender,
         }
     }
     pub fn set_receiver(&mut self, receiver: mpsc::Receiver<TrackManagerCommand>) {
@@ -75,6 +77,41 @@ impl TrackManager {
                     });
                 }
             });
+        egui::TopBottomPanel::top("toolbar")
+            .resizable(false)
+            .default_height(40.0)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("▶︎").clicked() {
+                        info!("Play button clicked");
+                    }
+                    if ui.button("⏸").clicked() {
+                        let result = self.audio_controller_sender.try_send(AudioCommand::Stop);
+                        if let Err(e) = result {
+                            error!("Failed to send Stop command: {}", e);
+                        }
+                    }
+                    if ui.button("⏹").clicked() {
+                        let result = self.audio_controller_sender.try_send(AudioCommand::Stop);
+                        if let Err(e) = result {
+                            error!("Failed to send Stop command: {}", e);
+                        }
+                        let result = self.audio_controller_sender.try_send(AudioCommand::ClearBuffer);
+                        if let Err(e) = result {
+                            error!("Failed to send ClearBuffer command: {}", e);
+                        }
+                    }
+                                    });
+                ui.horizontal(|ui| {
+                    ui.label("Zoom:");
+                    if ui
+                        .add(egui::Slider::new(&mut self.zoom_level, 0.1..=5.0).text("x"))
+                        .changed()
+                    {
+                        debug!(?self.zoom_level, "Zoom level changed");
+                    }
+                });
+            });
         let response = egui::CentralPanel::default().show(ctx, |ui| {
             // Show timeline ruler
             ui.horizontal(|ui| {
@@ -84,29 +121,17 @@ impl TrackManager {
                 let (ruler_rect, _ruler_response) =
                     ui.allocate_exact_size(egui::vec2(ruler_width, ruler_height), Sense::hover());
                 let painter = ui.painter_at(ruler_rect);
-
                 let pixels_per_second = calculate_pixels_per_second(44100, self.zoom_level);
-
-                // Treat horizontal_scroll as pixels scrolled to the right
                 let scroll_px = self.horizontal_scroll;
-
-                // Time at the left visible edge (in seconds)
                 let start_time = (scroll_px / pixels_per_second).max(0.0);
-
-                // Snap to the first whole second at or before the left edge
                 let first_mark_time = start_time.floor();
-
-                // How many seconds fit across the visible width
                 let visible_duration = ruler_width / pixels_per_second;
-
-                // Draw marks from first_mark_time up to the last visible second
                 let last_mark_time = first_mark_time + visible_duration + 1.0;
 
                 let mut t = first_mark_time as i32;
                 while (t as f32) <= last_mark_time {
                     let time_sec = t as f32;
 
-                    // X in pixels, accounting for scroll
                     let x = left_padding
                         + ruler_rect.left()
                         + time_sec * pixels_per_second

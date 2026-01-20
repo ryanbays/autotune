@@ -1,5 +1,4 @@
 #![allow(dead_code, unused)]
-use crate::audio::{audio_controller, audio_controller::AudioCommand, autotune};
 use clap::Parser;
 use std::time::Duration;
 use tokio::{sync::mpsc, time::sleep};

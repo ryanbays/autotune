@@ -34,9 +34,11 @@ impl eframe::App for App {
             ..Default::default()
         };
         self.titlebar.show(ctx, self.track_manager_sender.clone());
-        egui::CentralPanel::default().frame(panel_frame).show(ctx, |ui| {
-            ui.style_mut().interaction.selectable_labels = false;
-            self.track_manager.show(ctx);
-        });
+        egui::CentralPanel::default()
+            .frame(panel_frame)
+            .show(ctx, |ui| {
+                ui.style_mut().interaction.selectable_labels = false;
+                self.track_manager.show(ctx);
+            });
     }
 }

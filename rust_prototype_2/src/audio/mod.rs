@@ -52,6 +52,7 @@ impl Audio {
         self.pyin.read().ok().and_then(|g| g.clone())
     }
 
+    /// Gets the PYIN data, blocking until it is available.
     pub fn get_pyin_blocking(&self) -> Option<PYINData> {
         use std::thread;
         use std::time::Duration;
@@ -139,6 +140,30 @@ impl Audio {
         let mut out = vec![0.0; self.length * 2];
         interleave_stereo(&self.left, &self.right, &mut out);
         out
+    }
+
+    pub fn insert_audio_at(&mut self, position: usize, other: &Audio) {
+        debug!(
+            position,
+            other_length = other.length(),
+            self_length = self.length,
+            "Inserting audio at position"
+        );
+        assert_eq!(
+            self.sample_rate, other.sample_rate,
+            "Sample rates must match to insert audio"
+        );
+        let end_position = position + other.length();
+        if end_position > self.length {
+            self.left.resize(end_position, 0.0);
+            self.right.resize(end_position, 0.0);
+            self.length = end_position;
+        }
+        for i in 0..other.length() {
+            self.left[position + i] += other.left().get(i).copied().unwrap_or(0.0);
+            self.right[position + i] += other.right().get(i).copied().unwrap_or(0.0);
+        }
+        debug!(self_length = self.length, "Completed audio insertion");
     }
 }
 

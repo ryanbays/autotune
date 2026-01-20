@@ -3,11 +3,18 @@ use egui::Sense;
 use std::sync::mpsc;
 use tracing::{debug, info};
 
+const SAMPLES_PER_PIXEL: f32 = 250.0;
+
+pub fn calculate_pixels_per_second(sample_rate: u32, zoom_level: f32) -> f32 {
+    sample_rate as f32 / SAMPLES_PER_PIXEL * zoom_level
+}
+
 pub enum TrackManagerCommand {
     AddAudioClip(AudioFileData),
 }
 pub struct TrackManager {
     tracks: Vec<Track>,
+    horizontal_scroll: f32,
     next_id: u32,
     audio_files: Vec<AudioFileData>,
     receiver: mpsc::Receiver<TrackManagerCommand>,
@@ -17,6 +24,7 @@ pub struct TrackManager {
 impl TrackManager {
     pub fn new() -> Self {
         TrackManager {
+            horizontal_scroll: 0.0,
             tracks: Vec::new(),
             next_id: 1,
             audio_files: Vec::new(),
@@ -67,20 +75,90 @@ impl TrackManager {
                     });
                 }
             });
-        egui::CentralPanel::default().show(ctx, |ui| {
-            for (i, mut track) in self.tracks.clone().into_iter().enumerate() {
-                if track.show(i, self.zoom_level, ui, ctx, self) {
+        let response = egui::CentralPanel::default().show(ctx, |ui| {
+            // Show timeline ruler
+            ui.horizontal(|ui| {
+                let left_padding = 27.0;
+                let ruler_width = ui.available_width();
+                let ruler_height = 20.0;
+                let (ruler_rect, _ruler_response) =
+                    ui.allocate_exact_size(egui::vec2(ruler_width, ruler_height), Sense::hover());
+                let painter = ui.painter_at(ruler_rect);
+
+                let pixels_per_second = calculate_pixels_per_second(44100, self.zoom_level);
+
+                // Treat horizontal_scroll as pixels scrolled to the right
+                let scroll_px = self.horizontal_scroll;
+
+                // Time at the left visible edge (in seconds)
+                let start_time = (scroll_px / pixels_per_second).max(0.0);
+
+                // Snap to the first whole second at or before the left edge
+                let first_mark_time = start_time.floor();
+
+                // How many seconds fit across the visible width
+                let visible_duration = ruler_width / pixels_per_second;
+
+                // Draw marks from first_mark_time up to the last visible second
+                let last_mark_time = first_mark_time + visible_duration + 1.0;
+
+                let mut t = first_mark_time as i32;
+                while (t as f32) <= last_mark_time {
+                    let time_sec = t as f32;
+
+                    // X in pixels, accounting for scroll
+                    let x = left_padding
+                        + ruler_rect.left()
+                        + time_sec * pixels_per_second
+                        - scroll_px;
+
+                    // Only draw if inside the ruler rect
+                    if x >= ruler_rect.left() && x <= ruler_rect.right() {
+                        painter.line_segment(
+                            [
+                                egui::pos2(x, ruler_rect.top()),
+                                egui::pos2(x, ruler_rect.bottom()),
+                            ],
+                            egui::Stroke::new(1.0, egui::Color32::LIGHT_GRAY),
+                        );
+                        painter.text(
+                            egui::pos2(x + 2.0, ruler_rect.top() + 2.0),
+                            egui::Align2::LEFT_TOP,
+                            format!("{:.1}s", time_sec),
+                            egui::FontId::default(),
+                            egui::Color32::WHITE,
+                        );
+                    }
+
+                    t += 1;
+                }
+            });            ui.separator();
+            // Show tracks
+            let mut i = 0;
+            while i < self.tracks.len() {
+                let track = &mut self.tracks[i];
+                if track.show(i, self.zoom_level, self.horizontal_scroll, ui, ctx) {
                     self.tracks.remove(i);
+                } else {
+                    i += 1;
                 }
             }
             if ui.button("Add Track").clicked() {
                 self.add_track();
             }
         });
+        if response.response.hovered() {
+            if ctx.input(|i| i.raw_scroll_delta.y != 0.0) {
+                let scroll_amount = ctx.input(|i| i.raw_scroll_delta.y);
+                self.horizontal_scroll += scroll_amount * 0.5;
+                self.horizontal_scroll = self.horizontal_scroll.max(0.0);
+                debug!(?self.horizontal_scroll, "Adjusted horizontal scroll");
+            }
+        }
     }
     pub fn push_audio_file(&mut self, audio_file: AudioFileData) {
         self.audio_files.push(audio_file);
-    }
+    } 
     pub fn get_audio_files(&self) -> &Vec<AudioFileData> {
         &self.audio_files
     }
@@ -123,9 +201,9 @@ impl Track {
         &mut self,
         index: usize,
         zoom: f32,
+        scroll: f32,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        manager: &TrackManager,
     ) -> bool {
         let mut wants_delete = false;
         let track_height = 60.0;
@@ -153,12 +231,10 @@ impl Track {
                         // Draw waveform (min/max per pixel)
                         let samples = &self.audio.left();
                         let width = rect.width() as usize;
-                        let samples_per_pixel = 250.0;
-                        let viewport_samples = (width as f32 / (zoom)) as usize;
+                        let pixels_per_second = calculate_pixels_per_second(self.audio.sample_rate(), zoom); 
 
-                        for x in 0..viewport_samples {
-                            let sample_x = x * width / viewport_samples;
-                            let sample_idx = (x as f32 * samples_per_pixel / zoom) as usize;
+                        for x in 0..width{
+                            let sample_idx = ((x as f32 + scroll) / zoom * SAMPLES_PER_PIXEL) as usize;
                             if sample_idx >= samples.len() {
                                 break;
                             }
@@ -169,8 +245,8 @@ impl Track {
 
                             painter.line_segment(
                                 [
-                                    egui::pos2(rect.left() + sample_x as f32, mid_y - amp),
-                                    egui::pos2(rect.left() + sample_x as f32, mid_y + amp),
+                                    egui::pos2(rect.left() + x as f32, mid_y - amp),
+                                    egui::pos2(rect.left() + x as f32, mid_y + amp),
                                 ],
                                 egui::Stroke::new(1.0, egui::Color32::BLUE),
                             );
@@ -178,7 +254,6 @@ impl Track {
                         response
                     },
                 );
-
                 if let Some(clip) = payload {
                     if drop_zone_rsp.inner.hovered() {
                         if let Some(pos) = ui.ctx().pointer_interact_pos() {
@@ -186,6 +261,9 @@ impl Track {
                             let relative_x = pos.x - drop_zone_rsp.inner.rect.left();
                             let sample_index = ((relative_x / zoom) as usize) * 250;
                             debug!(?pos, ?relative_x, ?sample_index, "Dropped clip at position");
+                            let audio_data = clip.to_audio();
+                            self.audio.insert_audio_at(sample_index, &audio_data);
+                            debug!(audio = ?self.audio.length(), "Ending audio length after insertion");
                         }
                     }
                 }

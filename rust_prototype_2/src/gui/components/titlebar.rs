@@ -1,20 +1,18 @@
 use crate::audio::file;
 use crate::gui::components::track;
-use eframe::egui::{self, Color32, Sense, Stroke};
+use eframe::egui::{self, Sense};
 use egui::TopBottomPanel;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 pub struct TitleBar {
     title: String,
-    dragging: bool,
 }
 
 impl TitleBar {
     pub fn new(title: impl Into<String>) -> Self {
         Self {
             title: title.into(),
-            dragging: false,
         }
     }
 

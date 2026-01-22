@@ -90,6 +90,7 @@ impl Audio {
         rt.block_on(self.perform_pyin_async());
     }
 
+    // TODO: Make this call create a background task instead of awaiting directly.
     /// Asynchronously performs PYIN analysis on both channels and stores the result.
     pub async fn perform_pyin_async(&mut self) {
         debug!("Async perform PYIN called");

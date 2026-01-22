@@ -7,9 +7,9 @@
 
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use rust_prototype_2::audio::file;
+use rust_prototype_2::audio::{self, file};
 
 fn asset_path(name: &str) -> PathBuf {
     let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -37,7 +37,7 @@ fn load_valid_wav_file() -> anyhow::Result<()> {
         input
     );
 
-    let audio = file::load_audio_from_path(&input)?;
+    let audio = file::AudioFileData::load(&input)?.to_audio();
     let left = audio.left();
     let right = audio.right();
 
@@ -64,7 +64,7 @@ fn loading_nonexistent_file_returns_error() {
         bogus
     );
 
-    let result = file::load_audio_from_path(&bogus);
+    let result = file::AudioFileData::load(&bogus);
     assert!(
         result.is_err(),
         "expected error when loading nonexistent file, got: {:?}",
@@ -82,7 +82,7 @@ fn loading_invalid_file_returns_error() -> anyhow::Result<()> {
         writeln!(f, "this is not an audio file")?;
     }
 
-    let result = file::load_audio_from_path(&path);
+    let result = file::AudioFileData::load(&path);
     assert!(
         result.is_err(),
         "expected error when loading invalid audio file, got: {:?}",
@@ -108,15 +108,15 @@ fn round_trip_save_and_load_wav() -> anyhow::Result<()> {
         right.push(sample);
     }
 
-    let audio = file::AudioBuffer::from_stereo(left.clone(), right.clone(), sample_rate);
+    let audio = audio::Audio::new(sample_rate as u32, left.clone(), right.clone());
     // If your type / constructor differs, adjust the above line accordingly.
 
     let out_path = output_path("round_trip.wav");
     if out_path.exists() {
         fs::remove_file(&out_path)?;
     }
-
-    file::save_audio_to_path(&audio, &out_path)?;
+    let file = file::AudioFileData::from_audio(&audio);
+    file.save(&out_path)?;
 
     assert!(
         out_path.exists(),
@@ -124,11 +124,10 @@ fn round_trip_save_and_load_wav() -> anyhow::Result<()> {
         out_path
     );
 
-    let reloaded = file::load_audio_from_path(&out_path)?;
-    assert_eq!(reloaded.sample_rate(), sample_rate);
+    let reloaded = file::AudioFileData::load(&out_path)?.to_audio();
+    assert_eq!(reloaded.sample_rate(), sample_rate as u32);
     assert_eq!(reloaded.left().len(), left.len());
     assert_eq!(reloaded.right().len(), right.len());
 
     Ok(())
 }
-

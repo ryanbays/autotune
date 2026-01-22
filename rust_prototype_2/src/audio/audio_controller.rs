@@ -230,14 +230,20 @@ impl AudioController {
                 );
                 match crate::audio::autotune::compute_shifted_audio(track) {
                     Ok(shifted_audio) => {
-                        mixed_audio.add_audio_at(0, &shifted_audio);
+                        let result = mixed_audio.add_audio_at(0, &shifted_audio);
+                        if let Err(e) = result {
+                            error!("AudioController: Failed to add autotuned track: {}", e);
+                        }
                     }
                     Err(e) => {
                         error!(
                             "AudioController: Autotuning failed, adding original track: {}",
                             e
                         );
-                        mixed_audio.add_audio_at(0, track);
+                        let result = mixed_audio.add_audio_at(0, track);
+                        if let Err(e) = result {
+                            error!("AudioController: Failed to add track: {}", e);
+                        }
                     }
                 }
             } else {

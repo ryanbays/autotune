@@ -1,7 +1,7 @@
-use crate::audio::{Audio, audio_controller::{AudioController, AudioCommand}, file::AudioFileData};
+use crate::audio::{Audio, audio_controller::{AudioCommand}, file::AudioFileData};
 use egui::Sense;
 use tokio::sync::mpsc;
-use tracing::{debug, info, error};
+use tracing::{debug, error};
 
 const SAMPLES_PER_PIXEL: f32 = 441.0;
 
@@ -44,13 +44,6 @@ impl TrackManager {
         track_id
     }
 
-    pub fn get_track(&self, id: u32) -> Option<&Track> {
-        self.tracks.iter().find(|track| track.id() == id)
-    }
-
-    pub fn get_track_mut(&mut self, id: u32) -> Option<&mut Track> {
-        self.tracks.iter_mut().find(|track| track.id() == id)
-    }
 
     pub fn show(&mut self, ctx: &egui::Context) {
         while let Ok(command) = self.receiver.try_recv() {
@@ -66,7 +59,6 @@ impl TrackManager {
             .max_width(250.0)
             .show(ctx, |ui| {
                 ui.heading("Audio Clips");
-                let height = 50.0;
                 for (i, clip) in self.audio_files.iter().enumerate() {
                     let id = egui::Id::new(format!("audio_clip_{}", i));
                     let label = egui::Button::selectable(false, (i + 1).to_string());
@@ -165,7 +157,7 @@ impl TrackManager {
             let mut i = 0;
             while i < self.tracks.len() {
                 let track = &mut self.tracks[i];
-                if track.show(i, self.zoom_level, self.horizontal_scroll, ui, ctx) {
+                if track.show(i, self.zoom_level, self.horizontal_scroll, ui) {
                     self.tracks.remove(i);
                     self.audio_controller_sender
                         .try_send(AudioCommand::RemoveTrack(i as u32))
@@ -192,20 +184,6 @@ impl TrackManager {
     pub fn push_audio_file(&mut self, audio_file: AudioFileData) {
         self.audio_files.push(audio_file);
     } 
-    pub fn get_audio_files(&self) -> &Vec<AudioFileData> {
-        &self.audio_files
-    }
-    pub fn get_audio_file(&self, index: usize) -> Option<&AudioFileData> {
-        self.audio_files.get(index)
-    }
-    pub fn get_audio_file_mut(&mut self, index: usize) -> Option<&mut AudioFileData> {
-        self.audio_files.get_mut(index)
-    }
-}
-
-#[derive(Clone)]
-struct DraggedClip {
-    index: usize,
 }
 
 #[derive(Clone)]
@@ -227,14 +205,6 @@ impl Track {
             audio_controller_sender
         }
     }
-    pub fn audio(&self) -> &Audio {
-        &self.audio
-    }
-
-    pub fn id(&self) -> u32 {
-        self.id
-    }
-
     pub fn send_update(&self) {
         debug!(track_id = self.id, "Sending UpdateTrackAudio command");
         let audio_data = self.audio.clone();
@@ -253,7 +223,6 @@ impl Track {
         zoom: f32,
         scroll: f32,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
     ) -> bool {
         let mut wants_delete = false;
         let track_height = 60.0;
@@ -312,9 +281,13 @@ impl Track {
                             let sample_index = ((relative_x / zoom) as usize) * 250;
                             debug!(?pos, ?relative_x, ?sample_index, "Dropped clip at position");
                             let audio_data = clip.to_audio();
-                            self.audio.insert_audio_at(sample_index, &audio_data);
+                            let result = self.audio.insert_audio_at(sample_index, &audio_data);
+                            if let Err(e) = result {
+                                error!("Failed to insert audio clip: {}", e);
+                                return;
+                            }
                             debug!(audio = ?self.audio.length(), "Ending audio length after insertion");
-                            self.audio.perform_pyin_async();
+                                                           
                             self.send_update();
                         }
                     }

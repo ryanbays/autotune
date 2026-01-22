@@ -1,20 +1,40 @@
 use crate::audio::{Audio, interleave_stereo};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, error, info};
 
+/// Commands sent to the AudioController for processing
+/// Each command represents an action to be performed on the audio playback system
+/**
+- SendTrack(Audio, u32): Send audio data to be played on a specific track index.
+- RemoveTrack(u32): Remove the audio track at the specified index.
+- ClearBuffer: Clear the current audio buffer.
+- Play: Start audio playback.
+- Stop: Stop audio playback.
+- SetReadPosition(usize): Set the current read position in the audio buffer.
+- SetVolume(f32): Set the playback volume.
+- Shutdown: Shut down the audio controller and stop playback.
+*/
+#[derive(Debug)]
 pub enum AudioCommand {
-    SendAudio(Audio),
+    SendTrack(Audio, u32),
+    RemoveTrack(u32),
     ClearBuffer,
     Play,
     Stop,
+    SetReadPosition(usize),
     SetVolume(f32),
     Shutdown,
 }
 
+/// Controller for managing audio playback using CPAL
+/// It handles commands to play, stop, and manipulate audio tracks
+/// and mixes multiple audio tracks into a single output buffer.
 pub struct AudioController {
     receiver: tokio::sync::mpsc::Receiver<AudioCommand>,
-    audio: Arc<Mutex<Option<Audio>>>,
+    tracks: HashMap<u32, Audio>,
+    audio_buffer: Arc<Mutex<Audio>>,
     volume: Arc<Mutex<f32>>,
     position: Arc<Mutex<usize>>,
     playing: Arc<Mutex<bool>>,
@@ -22,10 +42,8 @@ pub struct AudioController {
 }
 
 impl AudioController {
-    pub fn new(
-        receiver: tokio::sync::mpsc::Receiver<AudioCommand>,
-        initial_audio: Option<Audio>,
-    ) -> anyhow::Result<Self> {
+    pub fn new(receiver: tokio::sync::mpsc::Receiver<AudioCommand>) -> anyhow::Result<Self> {
+        info!("Initializing AudioController");
         let host = cpal::default_host();
         debug!(audio_host = ?host.id(), "Using audio host");
         let device = host
@@ -44,12 +62,12 @@ impl AudioController {
 
         let volume = Arc::new(Mutex::new(1.0f32));
         let position = Arc::new(Mutex::new(0usize));
-        let audio: Arc<Mutex<Option<Audio>>> = Arc::new(Mutex::new(initial_audio));
+        let audio_buffer = Arc::new(Mutex::new(Audio::new(44100, Vec::new(), Vec::new())));
         let playing = Arc::new(Mutex::new(false));
 
         let shared_volume = Arc::clone(&volume);
         let shared_position = Arc::clone(&position);
-        let audio_for_callback = Arc::clone(&audio);
+        let audio_for_callback = Arc::clone(&audio_buffer);
         let playing_for_callback = Arc::clone(&playing);
 
         let stream = match sample_format {
@@ -77,16 +95,35 @@ impl AudioController {
         stream.play()?;
         Ok(Self {
             receiver,
-            audio,
+            audio_buffer,
             volume,
+            tracks: HashMap::new(),
             position,
             playing,
             _stream: stream,
         })
     }
 
+    /// Get the current volume level
+    pub fn get_volume(&self) -> f32 {
+        *self.volume.lock().unwrap()
+    }
+
+    /// Check if audio is currently playing
+    pub fn is_playing(&self) -> bool {
+        *self.playing.lock().unwrap()
+    }
+
+    /// Get the current read position in the audio buffer
+    pub fn get_position(&self) -> usize {
+        *self.position.lock().unwrap()
+    }
+
+    /// Fills the output buffer with audio data from the shared audio buffer
+    /// Applies volume control and handles playback state
+    /// This function is called within the CPAL audio callback
     fn fill_output_buffer(
-        audio_for_callback: &Arc<Mutex<Option<Audio>>>,
+        audio_for_callback: &Arc<Mutex<Audio>>,
         shared_position: &Arc<Mutex<usize>>,
         shared_volume: &Arc<Mutex<f32>>,
         playing: &Arc<Mutex<bool>>,
@@ -143,84 +180,120 @@ impl AudioController {
         if !is_playing {
             return;
         }
-        /*
-        info!(
-            "fill_output_buffer: len={} channels={} pos={} playing={} vol={}",
-            output.len(),
-            channels,
-            *pos,
-            is_playing,
-            vol,
+
+        let audio = &*audio_lock;
+        let left = &audio.left;
+        let right = &audio.right;
+
+        let frames_out = output.len() / channels;
+        let remaining_frames = left.len().min(right.len()).saturating_sub(*pos);
+        let frames_to_write = frames_out.min(remaining_frames);
+
+        if frames_to_write == 0 {
+            return;
+        }
+
+        let start = *pos;
+        let end = start + frames_to_write;
+        interleave_stereo(
+            &left[start..end],
+            &right[start..end],
+            &mut output[..frames_to_write * channels],
         );
-        */
 
-        if let Some(audio) = &*audio_lock {
-            let left = &audio.left;
-            let right = &audio.right;
-
-            let frames_out = output.len() / channels;
-            let remaining_frames = left.len().min(right.len()).saturating_sub(*pos);
-            let frames_to_write = frames_out.min(remaining_frames);
-
-            if frames_to_write == 0 {
-                return;
+        if vol != 1.0 {
+            for s in &mut output[..frames_to_write * channels] {
+                *s *= vol;
             }
+        }
 
-            let start = *pos;
-            let end = start + frames_to_write;
-            interleave_stereo(
-                &left[start..end],
-                &right[start..end],
-                &mut output[..frames_to_write * channels],
-            );
+        *pos += frames_to_write;
 
-            if vol != 1.0 {
-                for s in &mut output[..frames_to_write * channels] {
-                    *s *= vol;
-                }
-            }
-
-            *pos += frames_to_write;
-
-            if *pos > left.len().min(right.len()) {
-                *pos = 0;
-            }
+        if *pos > left.len().min(right.len()) {
+            *pos = 0;
         }
     }
 
+    /// Mixes all tracks into the audio buffer, applying autotuning if desired F0 is provided.
+    /// This function should be called whenever tracks are added, removed, or modified.
+    /// It locks the audio buffer mutex to update the mixed audio.
+    fn mix_tracks(&mut self) {
+        let time_start = std::time::Instant::now();
+
+        let mut mixed_audio = Audio::new(44100, Vec::new(), Vec::new());
+        for key in &self.tracks.keys().cloned().collect::<Vec<u32>>() {
+            let track = &self.tracks[key];
+            if let Some(desired_f0) = &track.desired_f0 {
+                debug!(
+                    "AudioController: Autotuning track with desired F0 of length {}",
+                    desired_f0.len()
+                );
+                match crate::audio::autotune::compute_shifted_audio(track) {
+                    Ok(shifted_audio) => {
+                        mixed_audio.add_audio_at(0, &shifted_audio);
+                    }
+                    Err(e) => {
+                        error!(
+                            "AudioController: Autotuning failed, adding original track: {}",
+                            e
+                        );
+                        mixed_audio.add_audio_at(0, track);
+                    }
+                }
+            } else {
+                debug!("AudioController: No desired F0, adding original track");
+                let result = mixed_audio.add_audio_at(0, track);
+                if let Err(e) = result {
+                    error!("AudioController: Failed to add track: {}", e);
+                }
+            }
+        }
+        *self.audio_buffer.lock().unwrap() = mixed_audio;
+
+        let duration = time_start.elapsed();
+        debug!(
+            "AudioController: Mixing {} tracks took {:?}",
+            self.tracks.len(),
+            duration
+        );
+    }
+
+    /// Main loop processing incoming audio commands
     pub async fn run(&mut self) {
         while let Some(command) = self.receiver.recv().await {
             match command {
-                // Adding audio to the buffer without overwriting it or starting playback
-                // Also checking that the stereo channels have the same length
-                AudioCommand::SendAudio(data) => {
+                AudioCommand::SendTrack(data, id) => {
                     debug!("AudioController: SendAudio command received");
-                    let mut audio_lock = self.audio.lock().unwrap();
-
-                    match &mut *audio_lock {
-                        Some(existing) => {
-                            // Ensure channels have same length
-                            assert_eq!(existing.left.len(), existing.right.len());
-                            assert_eq!(data.left.len(), data.right.len());
-
-                            existing.left.extend_from_slice(&data.left);
-                            existing.right.extend_from_slice(&data.right);
-                        }
-                        None => {
-                            *audio_lock = Some(data);
-                            *self.position.lock().unwrap() = 0;
-                        }
+                    self.mix_tracks();
+                    self.tracks.insert(id, data);
+                }
+                AudioCommand::RemoveTrack(id) => {
+                    self.mix_tracks();
+                    debug!("AudioController: RemoteTrack command received: {}", id);
+                    if (id as usize) < self.tracks.len() {
+                        self.tracks.remove(&id);
+                    } else {
+                        error!("AudioController: RemoteTrack id out of bounds: {}", id);
                     }
+                }
+                AudioCommand::SetReadPosition(position) => {
+                    debug!(
+                        "AudioController: SetReadPosition command received: {}",
+                        position
+                    );
+                    *self.position.lock().unwrap() = position;
                 }
                 AudioCommand::Play => {
                     debug!("AudioController: Play command received");
-                    *self.position.lock().unwrap() = 0;
+                    if self.playing.lock().unwrap().clone() {
+                        debug!("AudioController: Already playing, ignoring Play command");
+                        continue;
+                    }
                     *self.playing.lock().unwrap() = true;
                 }
                 AudioCommand::Stop => {
                     debug!("AudioController: Stop command received");
                     *self.playing.lock().unwrap() = false;
-                    *self.position.lock().unwrap() = 0;
                 }
                 AudioCommand::SetVolume(volume) => {
                     debug!("AudioController: SetVolume command received: {}", volume);
@@ -228,8 +301,6 @@ impl AudioController {
                 }
                 AudioCommand::ClearBuffer => {
                     debug!("AudioController: ClearBuffer command received");
-                    *self.audio.lock().unwrap() = None;
-                    *self.position.lock().unwrap() = 0;
                 }
                 AudioCommand::Shutdown => {
                     debug!("AudioController: Shutdown command received");

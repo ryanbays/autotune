@@ -8,6 +8,7 @@ use tracing_subscriber::{EnvFilter, fmt};
 mod audio;
 mod gui;
 
+/// Initialize the logger with the specified log level
 fn init_logger(level: &str) {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(level));
     fmt()
@@ -18,6 +19,7 @@ fn init_logger(level: &str) {
         .with_thread_names(true)
         .init();
 }
+
 #[derive(Parser, Debug)]
 #[command(name = "Autotune App")]
 struct Args {

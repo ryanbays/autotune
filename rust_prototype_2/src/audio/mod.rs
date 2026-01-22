@@ -5,6 +5,8 @@ use crate::audio::autotune::pyin::{self, PYINData};
 use std::sync::{Arc, RwLock};
 use tracing::{debug, info};
 
+/// Represents stereo audio data along with associated PYIN analysis.
+/// Thread-safe access to PYIN data is ensured via RwLock.
 #[derive(Clone, Debug)]
 pub struct Audio {
     sample_rate: u32,
@@ -12,6 +14,7 @@ pub struct Audio {
     left: Vec<f32>,
     right: Vec<f32>,
     pyin: Arc<RwLock<Option<PYINData>>>, // To ensure thread-safe access
+    pub desired_f0: Option<Vec<f32>>,
 }
 
 impl Audio {
@@ -27,6 +30,7 @@ impl Audio {
             length,
             left,
             right,
+            desired_f0: None,
             pyin: Arc::new(RwLock::new(None)),
         }
     }
@@ -86,6 +90,7 @@ impl Audio {
         rt.block_on(self.perform_pyin_async());
     }
 
+    /// Asynchronously performs PYIN analysis on both channels and stores the result.
     pub async fn perform_pyin_async(&mut self) {
         debug!("Async perform PYIN called");
         let stereo = self.compute_pyin_async().await;
@@ -136,23 +141,55 @@ impl Audio {
         .expect("spawn_blocking panicked")
     }
 
+    /// Returns interleaved stereo samples as a Vec<f32>
     pub fn interleaved(&self) -> Vec<f32> {
         let mut out = vec![0.0; self.length * 2];
         interleave_stereo(&self.left, &self.right, &mut out);
         out
     }
 
-    pub fn insert_audio_at(&mut self, position: usize, other: &Audio) {
+    /// Inserts the audio from `other` into `self` starting at `position`. (Overwrites existing
+    /// samples)
+    /// If `other` extends beyond the current length of `self`, `self` is resized accordingly.
+    /// Returns an error if the sample rates do not match.
+    pub fn insert_audio_at(&mut self, position: usize, other: &Audio) -> anyhow::Result<()> {
         debug!(
             position,
             other_length = other.length(),
             self_length = self.length,
             "Inserting audio at position"
         );
-        assert_eq!(
-            self.sample_rate, other.sample_rate,
-            "Sample rates must match to insert audio"
+        if self.sample_rate != other.sample_rate {
+            anyhow::bail!("Sample rates must match to insert audio");
+        }
+
+        let end_position = position + other.length();
+        if end_position > self.length {
+            self.left.resize(end_position, 0.0);
+            self.right.resize(end_position, 0.0);
+            self.length = end_position;
+        }
+        for i in 0..other.length() {
+            self.left[position + i] = other.left().get(i).copied().unwrap_or(0.0);
+            self.right[position + i] = other.right().get(i).copied().unwrap_or(0.0);
+        }
+        debug!(self_length = self.length, "Completed audio insertion");
+        Ok(())
+    }
+    /// Adds the audio from `other` into `self` starting at `position`. (Adds to existing
+    /// samples)
+    /// If `other` extends beyond the current length of `self`, `self` is resized accordingly.
+    /// Returns an error if the sample rates do not match.
+    pub fn add_audio_at(&mut self, position: usize, other: &Audio) -> anyhow::Result<()> {
+        debug!(
+            position,
+            other_length = other.length(),
+            self_length = self.length,
+            "Adding audio at position"
         );
+        if self.sample_rate != other.sample_rate {
+            anyhow::bail!("Sample rates must match to add audio");
+        }
         let end_position = position + other.length();
         if end_position > self.length {
             self.left.resize(end_position, 0.0);
@@ -163,10 +200,13 @@ impl Audio {
             self.left[position + i] += other.left().get(i).copied().unwrap_or(0.0);
             self.right[position + i] += other.right().get(i).copied().unwrap_or(0.0);
         }
-        debug!(self_length = self.length, "Completed audio insertion");
+        debug!(self_length = self.length, "Completed audio addition");
+        Ok(())
     }
 }
 
+/// Helper function to interleave two stereo channels into a single output buffer.
+/// Assumes `out` has enough space to hold interleaved samples.
 fn interleave_stereo(left: &[f32], right: &[f32], out: &mut [f32]) {
     for (i, frame) in out.chunks_exact_mut(2).enumerate() {
         frame[0] = left.get(i).copied().unwrap_or(0.0);

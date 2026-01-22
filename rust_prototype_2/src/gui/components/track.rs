@@ -3,7 +3,7 @@ use egui::Sense;
 use tokio::sync::mpsc;
 use tracing::{debug, info, error};
 
-const SAMPLES_PER_PIXEL: f32 = 250.0;
+const SAMPLES_PER_PIXEL: f32 = 441.0;
 
 pub fn calculate_pixels_per_second(sample_rate: u32, zoom_level: f32) -> f32 {
     sample_rate as f32 / SAMPLES_PER_PIXEL * zoom_level
@@ -15,7 +15,6 @@ pub enum TrackManagerCommand {
 pub struct TrackManager {
     tracks: Vec<Track>,
     horizontal_scroll: f32,
-    next_id: u32,
     audio_files: Vec<AudioFileData>,
     receiver: mpsc::Receiver<TrackManagerCommand>,
     zoom_level: f32,
@@ -27,7 +26,6 @@ impl TrackManager {
         TrackManager {
             horizontal_scroll: 0.0,
             tracks: Vec::new(),
-            next_id: 1,
             audio_files: Vec::new(),
             receiver: mpsc::channel(1).1,
             zoom_level: 1.0,
@@ -39,10 +37,11 @@ impl TrackManager {
     }
 
     pub fn add_track(&mut self) -> u32 {
-        let track = Track::new(self.next_id);
+        let track_id = self.tracks.len() as u32;
+        let track = Track::new(track_id, self.audio_controller_sender.clone());
+        track.send_update();
         self.tracks.push(track);
-        self.next_id += 1;
-        self.next_id - 1
+        track_id
     }
 
     pub fn get_track(&self, id: u32) -> Option<&Track> {
@@ -82,8 +81,12 @@ impl TrackManager {
             .default_height(40.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    if ui.button("▶︎").clicked() {
-                        info!("Play button clicked");
+                    if ui.button("▶").clicked() {
+                        debug!("Play button clicked");
+                        let result = self.audio_controller_sender.try_send(AudioCommand::Play);
+                        if let Err(e) = result {
+                            error!("Failed to send Stop command: {}", e);
+                        }
                     }
                     if ui.button("⏸").clicked() {
                         let result = self.audio_controller_sender.try_send(AudioCommand::Stop);
@@ -96,10 +99,10 @@ impl TrackManager {
                         if let Err(e) = result {
                             error!("Failed to send Stop command: {}", e);
                         }
-                        let result = self.audio_controller_sender.try_send(AudioCommand::ClearBuffer);
+                        let result = self.audio_controller_sender.try_send(AudioCommand::SetReadPosition(0));
                         if let Err(e) = result {
-                            error!("Failed to send ClearBuffer command: {}", e);
-                        }
+                            error!("Failed to send SetReadPosition command: {}", e);
+                        } 
                     }
                                     });
                 ui.horizontal(|ui| {
@@ -164,6 +167,11 @@ impl TrackManager {
                 let track = &mut self.tracks[i];
                 if track.show(i, self.zoom_level, self.horizontal_scroll, ui, ctx) {
                     self.tracks.remove(i);
+                    self.audio_controller_sender
+                        .try_send(AudioCommand::RemoveTrack(i as u32))
+                        .unwrap_or_else(|e| {
+                            error!("Failed to send RemoveTrack command: {}", e);
+                        });
                 } else {
                     i += 1;
                 }
@@ -206,20 +214,37 @@ pub struct Track {
     audio: Audio,
     muted: bool,
     soloed: bool,
+    audio_controller_sender: mpsc::Sender<AudioCommand>,
 }
 
 impl Track {
-    pub fn new(id: u32) -> Self {
+    pub fn new(id: u32, audio_controller_sender: mpsc::Sender<AudioCommand>) -> Self {
         Track {
             id,
-            audio: Audio::new(44100, vec![0.0; 44100 * 1], vec![0.0; 44100 * 1]), // 5 seconds of silence at 44.1kHz
+            audio: Audio::new(44100, Vec::new(), Vec::new()),
             muted: false,
             soloed: false,
+            audio_controller_sender
         }
+    }
+    pub fn audio(&self) -> &Audio {
+        &self.audio
     }
 
     pub fn id(&self) -> u32 {
         self.id
+    }
+
+    pub fn send_update(&self) {
+        debug!(track_id = self.id, "Sending UpdateTrackAudio command");
+        let audio_data = self.audio.clone();
+        let cmd = AudioCommand::SendTrack(audio_data, self.id);
+        let sender = self.audio_controller_sender.clone();
+        tokio::spawn(async move {
+            if let Err(e) = sender.send(cmd).await {
+                error!("Failed to send UpdateTrackAudio command: {}", e);
+            }
+        });
     }
 
     pub fn show(
@@ -289,6 +314,8 @@ impl Track {
                             let audio_data = clip.to_audio();
                             self.audio.insert_audio_at(sample_index, &audio_data);
                             debug!(audio = ?self.audio.length(), "Ending audio length after insertion");
+                            self.audio.perform_pyin_async();
+                            self.send_update();
                         }
                     }
                 }

@@ -11,12 +11,14 @@ pub fn calculate_pixels_per_second(sample_rate: u32, zoom_level: f32) -> f32 {
 
 pub enum TrackManagerCommand {
     AddAudioClip(AudioFileData),
+    SetReadPosition(usize),
 }
 pub struct TrackManager {
     tracks: Vec<Track>,
     horizontal_scroll: f32,
     audio_files: Vec<AudioFileData>,
     receiver: mpsc::Receiver<TrackManagerCommand>,
+    read_position: usize, // This is in samples
     zoom_level: f32,
     audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>,
 }
@@ -28,6 +30,7 @@ impl TrackManager {
             tracks: Vec::new(),
             audio_files: Vec::new(),
             receiver: mpsc::channel(1).1,
+            read_position: 0,
             zoom_level: 1.0,
             audio_controller_sender,
         }
@@ -46,10 +49,17 @@ impl TrackManager {
 
 
     pub fn show(&mut self, ctx: &egui::Context) {
+        self.audio_controller_sender.try_send(AudioCommand::BroadcastPosition).unwrap_or_else(|e| {
+            error!("Failed to send BroadcastPosition command: {}", e);
+        });
         while let Ok(command) = self.receiver.try_recv() {
             match command {
                 TrackManagerCommand::AddAudioClip(audio_file) => {
                     self.push_audio_file(audio_file);
+                }
+                TrackManagerCommand::SetReadPosition(position) => {
+                    debug!(?position, "SetReadPosition command received");
+                    self.read_position = position;
                 }
             }
         }
@@ -108,9 +118,9 @@ impl TrackManager {
                 });
             });
         let response = egui::CentralPanel::default().show(ctx, |ui| {
+            let left_padding = 27.0;
             // Show timeline ruler
             ui.horizontal(|ui| {
-                let left_padding = 27.0;
                 let ruler_width = ui.available_width();
                 let ruler_height = 20.0;
                 let (ruler_rect, _ruler_response) =
@@ -122,10 +132,16 @@ impl TrackManager {
                 let first_mark_time = start_time.floor();
                 let visible_duration = ruler_width / pixels_per_second;
                 let last_mark_time = first_mark_time + visible_duration + 1.0;
+                
+                let min_mark_spacing_px = 50.0;
+                let mut mark_interval = 1.0; // in seconds
+                while mark_interval * pixels_per_second < min_mark_spacing_px {
+                    mark_interval *= 2.0;
+                }
 
-                let mut t = first_mark_time as i32;
-                while (t as f32) <= last_mark_time {
-                    let time_sec = t as f32;
+                let mut t = (first_mark_time / mark_interval) as i32;
+                while (t as f32) <= last_mark_time / mark_interval {
+                    let time_sec = t as f32 * mark_interval;
 
                     let x = left_padding
                         + ruler_rect.left()
@@ -152,7 +168,8 @@ impl TrackManager {
 
                     t += 1;
                 }
-            });            ui.separator();
+            });            
+            ui.separator();
             // Show tracks
             let mut i = 0;
             while i < self.tracks.len() {
@@ -168,6 +185,16 @@ impl TrackManager {
                     i += 1;
                 }
             }
+            // Show read position line
+            let read_position = 0.0; // In seconds, this would be dynamic in a real app
+            let pixels_per_second = calculate_pixels_per_second(44100, self.zoom_level);
+            let x = left_padding + read_position * pixels_per_second - self.horizontal_scroll;
+            let height = ui.available_height();
+            let painter = ui.painter();
+            painter.line_segment(
+                [egui::pos2(x, 0.0), egui::pos2(x, height)],
+                egui::Stroke::new(2.0, egui::Color32::RED),
+            );
             if ui.button("Add Track").clicked() {
                 self.add_track();
             }

@@ -2,7 +2,6 @@ use crate::{
     audio::audio_controller,
     gui::components::{self, track},
 };
-use anyhow::Result;
 use eframe::egui;
 use tokio::sync::mpsc;
 use tracing::debug;
@@ -16,8 +15,14 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let (audio_controller_sender, rx) = mpsc::channel::<audio_controller::AudioCommand>(100);
-        let result = crate::audio::audio_controller::AudioController::new(rx);
+        let (audio_controller_sender, audio_controller_recv) =
+            mpsc::channel::<audio_controller::AudioCommand>(100);
+        let (track_manager_sender, track_manager_recv) =
+            mpsc::channel::<track::TrackManagerCommand>(100);
+        let result = crate::audio::audio_controller::AudioController::new(
+            audio_controller_recv,
+            track_manager_sender.clone(),
+        );
         let mut audio_controller = match result {
             Ok(controller) => controller,
             Err(e) => {
@@ -27,12 +32,10 @@ impl App {
         tokio::spawn(async move {
             audio_controller.run().await;
         });
-        let mut track_manager =
-            components::track::TrackManager::new(audio_controller_sender.clone());
+        let mut track_manager = track::TrackManager::new(audio_controller_sender.clone());
         track_manager.add_track(); // Add an initial track
-        let (track_manager_sender, rx) =
-            mpsc::channel::<components::track::TrackManagerCommand>(100);
-        track_manager.set_receiver(rx);
+
+        track_manager.set_receiver(track_manager_recv);
         Self {
             titlebar: components::titlebar::TitleBar::new("Autotune"),
             track_manager,

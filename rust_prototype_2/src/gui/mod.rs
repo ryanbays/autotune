@@ -1,5 +1,5 @@
 pub mod app;
-mod components;
+pub mod components;
 
 use tracing::{debug, info};
 
@@ -35,3 +35,4 @@ pub fn run() -> Result<(), eframe::Error> {
     )?;
     Ok(())
 }
+

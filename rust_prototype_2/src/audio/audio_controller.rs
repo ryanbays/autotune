@@ -1,4 +1,5 @@
 use crate::audio::{Audio, interleave_stereo};
+use crate::gui::components::track;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -24,6 +25,7 @@ pub enum AudioCommand {
     Play,
     Stop,
     SetReadPosition(usize),
+    BroadcastPosition,
     SetVolume(f32),
     Shutdown,
 }
@@ -33,6 +35,7 @@ pub enum AudioCommand {
 /// and mixes multiple audio tracks into a single output buffer.
 pub struct AudioController {
     receiver: tokio::sync::mpsc::Receiver<AudioCommand>,
+    track_manager_sender: tokio::sync::mpsc::Sender<track::TrackManagerCommand>,
     tracks: HashMap<u32, Audio>,
     audio_buffer: Arc<Mutex<Audio>>,
     volume: Arc<Mutex<f32>>,
@@ -42,7 +45,10 @@ pub struct AudioController {
 }
 
 impl AudioController {
-    pub fn new(receiver: tokio::sync::mpsc::Receiver<AudioCommand>) -> anyhow::Result<Self> {
+    pub fn new(
+        receiver: tokio::sync::mpsc::Receiver<AudioCommand>,
+        track_manager_sender: tokio::sync::mpsc::Sender<track::TrackManagerCommand>,
+    ) -> anyhow::Result<Self> {
         info!("Initializing AudioController");
         let host = cpal::default_host();
         debug!(audio_host = ?host.id(), "Using audio host");
@@ -98,6 +104,7 @@ impl AudioController {
             audio_buffer,
             volume,
             tracks: HashMap::new(),
+            track_manager_sender,
             position,
             playing,
             _stream: stream,
@@ -311,6 +318,15 @@ impl AudioController {
                 AudioCommand::Shutdown => {
                     debug!("AudioController: Shutdown command received");
                     break;
+                }
+                AudioCommand::BroadcastPosition => {
+                    let position = *self.position.lock().unwrap();
+                    if let Err(e) = self
+                        .track_manager_sender
+                        .try_send(track::TrackManagerCommand::SetReadPosition(position))
+                    {
+                        error!("AudioController: Failed to send playhead position: {}", e);
+                    }
                 }
             }
         }

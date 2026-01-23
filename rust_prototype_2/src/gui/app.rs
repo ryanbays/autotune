@@ -47,7 +47,7 @@ impl eframe::App for App {
         ctx.set_zoom_factor(1.5);
         let panel_frame = egui::Frame {
             fill: ctx.style().visuals.window_fill(),
-            corner_radius: 5.0.into(),
+            corner_radius: 25.0.into(),
             stroke: ctx.style().visuals.widgets.noninteractive.fg_stroke,
             outer_margin: 0.5.into(),
             inner_margin: 7.5.into(),

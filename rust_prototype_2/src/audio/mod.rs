@@ -1,8 +1,10 @@
 pub mod audio_controller;
 pub mod autotune;
 pub mod file;
+
 use crate::audio::autotune::pyin::{self, PYINData};
 use std::sync::{Arc, RwLock};
+use std::thread;
 use tracing::{debug, info};
 
 /// Represents stereo audio data along with associated PYIN analysis.
@@ -57,8 +59,8 @@ impl Audio {
     }
 
     /// Gets the PYIN data, blocking until it is available.
+    #[allow(dead_code)]
     pub fn get_pyin_blocking(&self) -> Option<PYINData> {
-        use std::thread;
         use std::time::Duration;
 
         loop {
@@ -84,62 +86,28 @@ impl Audio {
         Arc::clone(&self.pyin)
     }
 
-    /// Synchronous wrapper that blocks on the async implementation.
+    /// Synchronous wrapper.
+    /// NOTE: Do NOT call this on the GUI thread; prefer `perform_pyin_background`.
     pub fn perform_pyin(&mut self) {
-        let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
-        rt.block_on(self.perform_pyin_async());
+        compute_pyin_blocking(
+            self.sample_rate,
+            self.left.clone(),
+            self.right.clone(),
+            self.pyin_handle(),
+        );
     }
 
-    // TODO: Make this call create a background task instead of awaiting directly.
-    /// Asynchronously performs PYIN analysis on both channels and stores the result.
-    pub async fn perform_pyin_async(&mut self) {
-        debug!("Async perform PYIN called");
-        let stereo = self.compute_pyin_async().await;
-        if let Ok(mut guard) = self.pyin.write() {
-            *guard = Some(stereo);
-        }
-    }
-
-    /// Internal helper: runs pyin on left/right in a blocking thread.
-    async fn compute_pyin_async(&self) -> PYINData {
+    /// Starts PYIN analysis on a background OS thread and returns immediately.
+    /// Store the JoinHandle if you want (optional). If you drop it, it still runs.
+    pub fn perform_pyin_background(&mut self) -> thread::JoinHandle<()> {
         let left = self.left.clone();
         let right = self.right.clone();
         let sample_rate = self.sample_rate;
+        let pyin_ref = self.pyin_handle();
 
-        tokio::task::spawn_blocking(move || {
-            debug!("Starting PYIN analysis for both channels asynchronously");
-            let (left_pyin, right_pyin) = rayon::join(
-                || pyin::pyin(&left, sample_rate, None, None, None, None, None, None),
-                || pyin::pyin(&right, sample_rate, None, None, None, None, None, None),
-            );
-            debug!(
-                right_len = right_pyin.f0().len(),
-                left_len = left_pyin.f0().len(),
-                "Completed PYIN analysis for both channels"
-            );
-            // Combine results based on highest probabilty of voicing
-            let length = left_pyin.f0().len().max(right_pyin.f0().len());
-            let mut f0 = vec![0.0; length];
-            let mut voiced_flags = vec![false; length];
-            let mut prob = vec![0.0; length];
-            for i in 0..length {
-                let left_prob = left_pyin.voiced_prob().get(i).copied().unwrap_or(0.0);
-                let right_prob = right_pyin.voiced_prob().get(i).copied().unwrap_or(0.0);
-                if left_prob >= right_prob {
-                    f0[i] = left_pyin.f0().get(i).copied().unwrap_or(0.0);
-                    voiced_flags[i] = left_pyin.voiced_flag().get(i).copied().unwrap_or(false);
-                    prob[i] = left_prob;
-                } else {
-                    f0[i] = right_pyin.f0().get(i).copied().unwrap_or(0.0);
-                    voiced_flags[i] = right_pyin.voiced_flag().get(i).copied().unwrap_or(false);
-                    prob[i] = right_prob;
-                }
-            }
-            debug!("Combined PYIN data from both channels");
-            PYINData::new(f0, voiced_flags, prob)
+        thread::spawn(move || {
+            compute_pyin_blocking(sample_rate, left, right, pyin_ref);
         })
-        .await
-        .expect("spawn_blocking panicked")
     }
 
     /// Returns interleaved stereo samples as a Vec<f32>
@@ -203,6 +171,58 @@ impl Audio {
         }
         debug!(self_length = self.length, "Completed audio addition");
         Ok(())
+    }
+}
+
+/// Internal helper: runs pyin on left/right on the current thread.
+/// (Call this from a background thread to keep the GUI responsive.)
+fn compute_pyin_blocking(
+    sample_rate: u32,
+    left: Vec<f32>,
+    right: Vec<f32>,
+    pyin_ref: Arc<RwLock<Option<PYINData>>>,
+) {
+    debug!("Starting PYIN analysis for both channels (background thread)");
+
+    let (left_pyin, right_pyin) = rayon::join(
+        || pyin::pyin(&left, sample_rate, None, None, None, None, None, None),
+        || pyin::pyin(&right, sample_rate, None, None, None, None, None, None),
+    );
+
+    debug!(
+        right_len = right_pyin.f0().len(),
+        left_len = left_pyin.f0().len(),
+        "Completed PYIN analysis for both channels"
+    );
+
+    let length = left_pyin.f0().len().max(right_pyin.f0().len());
+    let mut f0 = vec![0.0; length];
+    let mut voiced_flags = vec![false; length];
+    let mut prob = vec![0.0; length];
+
+    for i in 0..length {
+        let left_prob = left_pyin.voiced_prob().get(i).copied().unwrap_or(0.0);
+        let right_prob = right_pyin.voiced_prob().get(i).copied().unwrap_or(0.0);
+        if left_prob >= right_prob {
+            f0[i] = left_pyin.f0().get(i).copied().unwrap_or(0.0);
+            voiced_flags[i] = left_pyin.voiced_flag().get(i).copied().unwrap_or(false);
+            prob[i] = left_prob;
+        } else {
+            f0[i] = right_pyin.f0().get(i).copied().unwrap_or(0.0);
+            voiced_flags[i] = right_pyin.voiced_flag().get(i).copied().unwrap_or(false);
+            prob[i] = right_prob;
+        }
+    }
+
+    debug!("Combined PYIN data from both channels");
+
+    match pyin_ref.write() {
+        Ok(mut guard) => {
+            *guard = Some(PYINData::new(f0, voiced_flags, prob));
+        }
+        Err(e) => {
+            info!("Failed to acquire PYIN write lock: {:?}", e);
+        }
     }
 }
 

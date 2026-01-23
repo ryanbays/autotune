@@ -273,6 +273,7 @@ impl Track {
                         response
                     },
                 );
+                // Handling audio clip drag and drop
                 if let Some(clip) = payload {
                     if drop_zone_rsp.inner.hovered() {
                         if let Some(pos) = ui.ctx().pointer_interact_pos() {
@@ -287,7 +288,7 @@ impl Track {
                                 return;
                             }
                             debug!(audio = ?self.audio.length(), "Ending audio length after insertion");
-                                                           
+                            self.audio.perform_pyin_background();
                             self.send_update();
                         }
                     }

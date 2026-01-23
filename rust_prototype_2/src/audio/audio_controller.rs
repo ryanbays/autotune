@@ -270,17 +270,17 @@ impl AudioController {
             match command {
                 AudioCommand::SendTrack(data, id) => {
                     debug!("AudioController: SendAudio command received");
-                    self.mix_tracks();
                     self.tracks.insert(id, data);
+                    self.mix_tracks();
                 }
                 AudioCommand::RemoveTrack(id) => {
-                    self.mix_tracks();
                     debug!("AudioController: RemoteTrack command received: {}", id);
                     if (id as usize) < self.tracks.len() {
                         self.tracks.remove(&id);
                     } else {
                         error!("AudioController: RemoteTrack id out of bounds: {}", id);
                     }
+                    self.mix_tracks();
                 }
                 AudioCommand::SetReadPosition(position) => {
                     debug!(

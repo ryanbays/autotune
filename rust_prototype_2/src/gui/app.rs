@@ -47,6 +47,7 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.request_repaint_after(std::time::Duration::from_millis(16));
         ctx.set_zoom_factor(1.5);
         let panel_frame = egui::Frame {
             fill: ctx.style().visuals.window_fill(),

@@ -183,7 +183,7 @@ fn compute_pyin_blocking(
     pyin_ref: Arc<RwLock<Option<PYINData>>>,
 ) {
     debug!("Starting PYIN analysis for both channels (background thread)");
-
+    let start_time = std::time::Instant::now();
     let (left_pyin, right_pyin) = rayon::join(
         || pyin::pyin(&left, sample_rate, None, None, None, None, None, None),
         || pyin::pyin(&right, sample_rate, None, None, None, None, None, None),
@@ -213,8 +213,8 @@ fn compute_pyin_blocking(
             prob[i] = right_prob;
         }
     }
-
-    debug!("Combined PYIN data from both channels");
+    let elapsed = start_time.elapsed();
+    debug!(time = ?elapsed, "Combined PYIN data from both channels");
 
     match pyin_ref.write() {
         Ok(mut guard) => {

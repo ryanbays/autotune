@@ -1,4 +1,4 @@
-use crate::audio::{Audio, audio_controller::{AudioCommand}, file::AudioFileData};
+use crate::audio::{Audio, audio_controller::AudioCommand, file::AudioFileData};
 use egui::Sense;
 use tokio::sync::mpsc;
 use tracing::{debug, error};
@@ -24,7 +24,9 @@ pub struct TrackManager {
 }
 
 impl TrackManager {
-    pub fn new(audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>) -> Self {
+    pub fn new(
+        audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>,
+    ) -> Self {
         TrackManager {
             horizontal_scroll: 0.0,
             tracks: Vec::new(),
@@ -47,18 +49,18 @@ impl TrackManager {
         track_id
     }
 
-
     pub fn show(&mut self, ctx: &egui::Context) {
-        self.audio_controller_sender.try_send(AudioCommand::BroadcastPosition).unwrap_or_else(|e| {
-            error!("Failed to send BroadcastPosition command: {}", e);
-        });
+        self.audio_controller_sender
+            .try_send(AudioCommand::BroadcastPosition)
+            .unwrap_or_else(|e| {
+                error!("Failed to send BroadcastPosition command: {}", e);
+            });
         while let Ok(command) = self.receiver.try_recv() {
             match command {
                 TrackManagerCommand::AddAudioClip(audio_file) => {
                     self.push_audio_file(audio_file);
                 }
                 TrackManagerCommand::SetReadPosition(position) => {
-                    debug!(?position, "SetReadPosition command received");
                     self.read_position = position;
                 }
             }
@@ -101,20 +103,17 @@ impl TrackManager {
                         if let Err(e) = result {
                             error!("Failed to send Stop command: {}", e);
                         }
-                        let result = self.audio_controller_sender.try_send(AudioCommand::SetReadPosition(0));
+                        let result = self
+                            .audio_controller_sender
+                            .try_send(AudioCommand::SetReadPosition(0));
                         if let Err(e) = result {
                             error!("Failed to send SetReadPosition command: {}", e);
-                        } 
+                        }
                     }
-                                    });
+                });
                 ui.horizontal(|ui| {
                     ui.label("Zoom:");
-                    if ui
-                        .add(egui::Slider::new(&mut self.zoom_level, 0.1..=5.0).text("x"))
-                        .changed()
-                    {
-                        debug!(?self.zoom_level, "Zoom level changed");
-                    }
+                    ui.add(egui::Slider::new(&mut self.zoom_level, 0.01..=10.0).text("x"))
                 });
             });
         let response = egui::CentralPanel::default().show(ctx, |ui| {
@@ -132,7 +131,7 @@ impl TrackManager {
                 let first_mark_time = start_time.floor();
                 let visible_duration = ruler_width / pixels_per_second;
                 let last_mark_time = first_mark_time + visible_duration + 1.0;
-                
+
                 let min_mark_spacing_px = 50.0;
                 let mut mark_interval = 1.0; // in seconds
                 while mark_interval * pixels_per_second < min_mark_spacing_px {
@@ -143,10 +142,8 @@ impl TrackManager {
                 while (t as f32) <= last_mark_time / mark_interval {
                     let time_sec = t as f32 * mark_interval;
 
-                    let x = left_padding
-                        + ruler_rect.left()
-                        + time_sec * pixels_per_second
-                        - scroll_px;
+                    let x =
+                        left_padding + ruler_rect.left() + time_sec * pixels_per_second - scroll_px;
 
                     // Only draw if inside the ruler rect
                     if x >= ruler_rect.left() && x <= ruler_rect.right() {
@@ -168,7 +165,7 @@ impl TrackManager {
 
                     t += 1;
                 }
-            });            
+            });
             ui.separator();
             // Show tracks
             let mut i = 0;
@@ -186,14 +183,25 @@ impl TrackManager {
                 }
             }
             // Show read position line
-            let read_position = 0.0; // In seconds, this would be dynamic in a real app
-            let pixels_per_second = calculate_pixels_per_second(44100, self.zoom_level);
-            let x = left_padding + read_position * pixels_per_second - self.horizontal_scroll;
-            let height = ui.available_height();
-            let painter = ui.painter();
+            let rect = ui.max_rect();
+            let x = left_padding
+                + rect.left()
+                + ((self.read_position as f32) * self.zoom_level / SAMPLES_PER_PIXEL)
+                - self.horizontal_scroll;
+
+            debug!(
+                read_position = self.read_position,
+                x_position = x,
+                "Drawing read position line"
+            );
+
+            let painter = ui.painter_at(rect);
             painter.line_segment(
-                [egui::pos2(x, 0.0), egui::pos2(x, height)],
-                egui::Stroke::new(2.0, egui::Color32::RED),
+                [
+                    egui::pos2(x, rect.top() + 30.0),
+                    egui::pos2(x, rect.top() + 30.0 + self.tracks.len() as f32 * 80.0),
+                ],
+                egui::Stroke::new(1.0, egui::Color32::RED),
             );
             if ui.button("Add Track").clicked() {
                 self.add_track();
@@ -204,13 +212,12 @@ impl TrackManager {
                 let scroll_amount = ctx.input(|i| i.raw_scroll_delta.y);
                 self.horizontal_scroll += scroll_amount * 0.5;
                 self.horizontal_scroll = self.horizontal_scroll.max(0.0);
-                debug!(?self.horizontal_scroll, "Adjusted horizontal scroll");
             }
         }
     }
     pub fn push_audio_file(&mut self, audio_file: AudioFileData) {
         self.audio_files.push(audio_file);
-    } 
+    }
 }
 
 #[derive(Clone)]
@@ -229,7 +236,7 @@ impl Track {
             audio: Audio::new(44100, Vec::new(), Vec::new()),
             muted: false,
             soloed: false,
-            audio_controller_sender
+            audio_controller_sender,
         }
     }
     pub fn send_update(&self) {
@@ -244,13 +251,7 @@ impl Track {
         });
     }
 
-    pub fn show(
-        &mut self,
-        index: usize,
-        zoom: f32,
-        scroll: f32,
-        ui: &mut egui::Ui,
-    ) -> bool {
+    pub fn show(&mut self, index: usize, zoom: f32, scroll: f32, ui: &mut egui::Ui) -> bool {
         let mut wants_delete = false;
         let track_height = 60.0;
         ui.allocate_ui_with_layout(
@@ -277,7 +278,6 @@ impl Track {
                         // Draw waveform (min/max per pixel)
                         let samples = &self.audio.left();
                         let width = rect.width() as usize;
-                        let pixels_per_second = calculate_pixels_per_second(self.audio.sample_rate(), zoom); 
 
                         for x in 0..width{
                             let sample_idx = ((x as f32 + scroll) / zoom * SAMPLES_PER_PIXEL) as usize;

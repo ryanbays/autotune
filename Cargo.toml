@@ -22,4 +22,3 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 
 [build-dependencies]
-cargo-doc-md = "0.11.0"

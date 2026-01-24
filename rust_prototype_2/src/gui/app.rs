@@ -1,13 +1,12 @@
-use crate::{
-    audio::audio_controller,
-    gui::components::{self, track},
-};
+use crate::{audio::audio_controller, gui::components};
 use eframe::egui;
 use tokio::sync::mpsc;
 use tracing::debug;
 
 pub struct App {
     titlebar: components::titlebar::TitleBar,
+    toolbar: components::toolbar::Toolbar,
+    clip_manager: components::clips::ClipManager,
     track_manager: components::track::TrackManager,
     track_manager_sender: mpsc::Sender<components::track::TrackManagerCommand>,
     audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>,
@@ -18,7 +17,7 @@ impl App {
         let (audio_controller_sender, audio_controller_recv) =
             mpsc::channel::<audio_controller::AudioCommand>(100);
         let (track_manager_sender, track_manager_recv) =
-            mpsc::channel::<track::TrackManagerCommand>(100);
+            mpsc::channel::<components::track::TrackManagerCommand>(100);
         let result = crate::audio::audio_controller::AudioController::new(
             audio_controller_recv,
             track_manager_sender.clone(),
@@ -32,12 +31,19 @@ impl App {
         tokio::spawn(async move {
             audio_controller.run().await;
         });
-        let mut track_manager = track::TrackManager::new(audio_controller_sender.clone());
-        track_manager.add_track(); // Add an initial track
+        let track_manager = components::track::TrackManager::new(
+            track_manager_recv,
+            audio_controller_sender.clone(),
+        );
 
-        track_manager.set_receiver(track_manager_recv);
+        let clip_manager = components::clips::ClipManager::new();
+        let toolbar = components::toolbar::Toolbar::new(audio_controller_sender.clone());
+        let titlebar =
+            components::titlebar::TitleBar::new("Autotune", track_manager_sender.clone());
         Self {
-            titlebar: components::titlebar::TitleBar::new("Autotune"),
+            titlebar,
+            toolbar,
+            clip_manager,
             track_manager,
             track_manager_sender,
             audio_controller_sender,
@@ -57,12 +63,15 @@ impl eframe::App for App {
             inner_margin: 7.5.into(),
             ..Default::default()
         };
-        self.titlebar.show(ctx, self.track_manager_sender.clone());
+        self.titlebar.show(ctx);
         egui::CentralPanel::default()
             .frame(panel_frame)
             .show(ctx, |ui| {
                 ui.style_mut().interaction.selectable_labels = false;
-                self.track_manager.show(ctx);
+                self.toolbar.show(ctx);
+                self.clip_manager.show(ctx);
+                self.track_manager
+                    .show(&mut self.clip_manager, &self.toolbar, ctx);
             });
     }
 

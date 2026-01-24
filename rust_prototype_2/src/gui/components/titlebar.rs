@@ -7,20 +7,21 @@ use tracing::{debug, error, info};
 
 pub struct TitleBar {
     title: String,
+    track_manager_sender: mpsc::Sender<track::TrackManagerCommand>,
 }
 
 impl TitleBar {
-    pub fn new(title: impl Into<String>) -> Self {
+    pub fn new(
+        title: impl Into<String>,
+        track_manager_sender: mpsc::Sender<track::TrackManagerCommand>,
+    ) -> Self {
         Self {
+            track_manager_sender,
             title: title.into(),
         }
     }
 
-    pub fn show(
-        &mut self,
-        ctx: &egui::Context,
-        track_manager_sender: mpsc::Sender<track::TrackManagerCommand>,
-    ) {
+    pub fn show(&mut self, ctx: &egui::Context) {
         TopBottomPanel::top("title_bar").show(ctx, |ui| {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
@@ -28,6 +29,7 @@ impl TitleBar {
                 ui.label(&self.title);
                 ui.menu_button("File", |ui| {
                     if ui.button("Load audio clip").clicked() {
+                        let tx = self.track_manager_sender.clone();
                         tokio::task::spawn_blocking(move || {
                             let result = rfd::FileDialog::new()
                                 .add_filter("WAV Audio", &["wav"])
@@ -37,7 +39,7 @@ impl TitleBar {
                                 match file::AudioFileData::load(&path) {
                                     Ok(audio_data) => {
                                         info!("Loaded audio file: {:?}", path);
-                                        if let Err(e) = track_manager_sender.try_send(
+                                        if let Err(e) = tx.try_send(
                                             track::TrackManagerCommand::AddAudioClip(audio_data),
                                         ) {
                                             error!(
@@ -56,7 +58,7 @@ impl TitleBar {
                         });
                     }
                 });
-               self.handle_window_control(ui, ctx);
+                self.handle_window_control(ui, ctx);
             });
             ui.add_space(4.0);
         });
@@ -75,8 +77,7 @@ impl TitleBar {
                 .on_hover_text("Minimize");
 
             // Title bar response for dragging
-            let title_bar_response =
-                ui.add(egui::Label::new("").sense(Sense::click_and_drag()));
+            let title_bar_response = ui.add(egui::Label::new("").sense(Sense::click_and_drag()));
 
             // Handle dragging
             if title_bar_response.clicked() {

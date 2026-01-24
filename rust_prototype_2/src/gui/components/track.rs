@@ -1,4 +1,7 @@
-use crate::audio::{Audio, audio_controller::AudioCommand, file::AudioFileData};
+use crate::{
+    audio::{Audio, audio_controller::AudioCommand, file::AudioFileData},
+    gui::components::{self, clips::ClipManager},
+};
 use egui::Sense;
 use tokio::sync::mpsc;
 use tracing::{debug, error};
@@ -16,29 +19,23 @@ pub enum TrackManagerCommand {
 pub struct TrackManager {
     tracks: Vec<Track>,
     horizontal_scroll: f32,
-    audio_files: Vec<AudioFileData>,
     receiver: mpsc::Receiver<TrackManagerCommand>,
     read_position: usize, // This is in samples
-    zoom_level: f32,
     audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>,
 }
 
 impl TrackManager {
     pub fn new(
+        receiver: mpsc::Receiver<TrackManagerCommand>,
         audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>,
     ) -> Self {
         TrackManager {
             horizontal_scroll: 0.0,
             tracks: Vec::new(),
-            audio_files: Vec::new(),
-            receiver: mpsc::channel(1).1,
+            receiver,
             read_position: 0,
-            zoom_level: 1.0,
             audio_controller_sender,
         }
-    }
-    pub fn set_receiver(&mut self, receiver: mpsc::Receiver<TrackManagerCommand>) {
-        self.receiver = receiver;
     }
 
     pub fn add_track(&mut self) -> u32 {
@@ -49,7 +46,7 @@ impl TrackManager {
         track_id
     }
 
-    pub fn show(&mut self, ctx: &egui::Context) {
+    fn audio_controller_communication(&mut self, clip_manager: &mut ClipManager) {
         self.audio_controller_sender
             .try_send(AudioCommand::BroadcastPosition)
             .unwrap_or_else(|e| {
@@ -58,120 +55,104 @@ impl TrackManager {
         while let Ok(command) = self.receiver.try_recv() {
             match command {
                 TrackManagerCommand::AddAudioClip(audio_file) => {
-                    self.push_audio_file(audio_file);
+                    clip_manager.add_clip(audio_file);
                 }
                 TrackManagerCommand::SetReadPosition(position) => {
                     self.read_position = position;
                 }
             }
         }
-        egui::SidePanel::left("audio_list")
-            .resizable(true)
-            .default_width(200.0)
-            .max_width(250.0)
-            .show(ctx, |ui| {
-                ui.heading("Audio Clips");
-                for (i, clip) in self.audio_files.iter().enumerate() {
-                    let id = egui::Id::new(format!("audio_clip_{}", i));
-                    let label = egui::Button::selectable(false, (i + 1).to_string());
-                    let payload = clip.clone();
-                    ui.dnd_drag_source(id, payload, |ui| {
-                        ui.add(label);
-                    });
+    }
+    fn show_timeline_ruler(&self, left_padding: f32, zoom_level: f32, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            let ruler_width = ui.available_width();
+            let ruler_height = 20.0;
+            let (ruler_rect, _ruler_response) =
+                ui.allocate_exact_size(egui::vec2(ruler_width, ruler_height), Sense::hover());
+            let painter = ui.painter_at(ruler_rect);
+            let pixels_per_second = calculate_pixels_per_second(44100, zoom_level);
+            let scroll_px = self.horizontal_scroll;
+            let start_time = (scroll_px / pixels_per_second).max(0.0);
+            let first_mark_time = start_time.floor();
+            let visible_duration = ruler_width / pixels_per_second;
+            let last_mark_time = first_mark_time + visible_duration + 1.0;
+
+            let min_mark_spacing_px = 50.0;
+            let mut mark_interval = 1.0; // in seconds
+            while mark_interval * pixels_per_second < min_mark_spacing_px {
+                mark_interval *= 2.0;
+            }
+
+            let mut t = (first_mark_time / mark_interval) as i32;
+            while (t as f32) <= last_mark_time / mark_interval {
+                let time_sec = t as f32 * mark_interval;
+
+                let x = left_padding + ruler_rect.left() + time_sec * pixels_per_second - scroll_px;
+
+                // Only draw if inside the ruler rect
+                if x >= ruler_rect.left() && x <= ruler_rect.right() {
+                    painter.line_segment(
+                        [
+                            egui::pos2(x, ruler_rect.top()),
+                            egui::pos2(x, ruler_rect.bottom()),
+                        ],
+                        egui::Stroke::new(1.0, egui::Color32::LIGHT_GRAY),
+                    );
+                    painter.text(
+                        egui::pos2(x + 2.0, ruler_rect.top() + 2.0),
+                        egui::Align2::LEFT_TOP,
+                        format!("{:.1}s", time_sec),
+                        egui::FontId::default(),
+                        egui::Color32::WHITE,
+                    );
                 }
-            });
-        egui::TopBottomPanel::top("toolbar")
-            .resizable(false)
-            .default_height(40.0)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    if ui.button("▶").clicked() {
-                        debug!("Play button clicked");
-                        let result = self.audio_controller_sender.try_send(AudioCommand::Play);
-                        if let Err(e) = result {
-                            error!("Failed to send Stop command: {}", e);
-                        }
-                    }
-                    if ui.button("⏸").clicked() {
-                        let result = self.audio_controller_sender.try_send(AudioCommand::Stop);
-                        if let Err(e) = result {
-                            error!("Failed to send Stop command: {}", e);
-                        }
-                    }
-                    if ui.button("⏹").clicked() {
-                        let result = self.audio_controller_sender.try_send(AudioCommand::Stop);
-                        if let Err(e) = result {
-                            error!("Failed to send Stop command: {}", e);
-                        }
-                        let result = self
-                            .audio_controller_sender
-                            .try_send(AudioCommand::SetReadPosition(0));
-                        if let Err(e) = result {
-                            error!("Failed to send SetReadPosition command: {}", e);
-                        }
-                    }
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Zoom:");
-                    ui.add(egui::Slider::new(&mut self.zoom_level, 0.01..=10.0).text("x"))
-                });
-            });
+
+                t += 1;
+            }
+        });
+    }
+    fn show_read_pos_line(&self, left_padding: f32, zoom_level: f32, ui: &mut egui::Ui) {
+        let rect = ui.max_rect();
+        let x = left_padding
+            + rect.left()
+            + ((self.read_position as f32) * zoom_level / SAMPLES_PER_PIXEL)
+            - self.horizontal_scroll;
+
+        debug!(
+            read_position = self.read_position,
+            x_position = x,
+            "Drawing read position line"
+        );
+
+        let painter = ui.painter_at(rect);
+        painter.line_segment(
+            [
+                egui::pos2(x, rect.top() + 30.0),
+                egui::pos2(x, rect.top() + 30.0 + self.tracks.len() as f32 * 80.0),
+            ],
+            egui::Stroke::new(1.0, egui::Color32::RED),
+        );
+    }
+    pub fn show(
+        &mut self,
+        clip_manager: &mut components::clips::ClipManager,
+        toolbar: &components::toolbar::Toolbar,
+        ctx: &egui::Context,
+    ) {
+        self.audio_controller_communication(clip_manager);
+
         let response = egui::CentralPanel::default().show(ctx, |ui| {
             let left_padding = 27.0;
-            // Show timeline ruler
-            ui.horizontal(|ui| {
-                let ruler_width = ui.available_width();
-                let ruler_height = 20.0;
-                let (ruler_rect, _ruler_response) =
-                    ui.allocate_exact_size(egui::vec2(ruler_width, ruler_height), Sense::hover());
-                let painter = ui.painter_at(ruler_rect);
-                let pixels_per_second = calculate_pixels_per_second(44100, self.zoom_level);
-                let scroll_px = self.horizontal_scroll;
-                let start_time = (scroll_px / pixels_per_second).max(0.0);
-                let first_mark_time = start_time.floor();
-                let visible_duration = ruler_width / pixels_per_second;
-                let last_mark_time = first_mark_time + visible_duration + 1.0;
 
-                let min_mark_spacing_px = 50.0;
-                let mut mark_interval = 1.0; // in seconds
-                while mark_interval * pixels_per_second < min_mark_spacing_px {
-                    mark_interval *= 2.0;
-                }
+            self.show_timeline_ruler(left_padding, toolbar.get_zoom_level(), ui);
 
-                let mut t = (first_mark_time / mark_interval) as i32;
-                while (t as f32) <= last_mark_time / mark_interval {
-                    let time_sec = t as f32 * mark_interval;
-
-                    let x =
-                        left_padding + ruler_rect.left() + time_sec * pixels_per_second - scroll_px;
-
-                    // Only draw if inside the ruler rect
-                    if x >= ruler_rect.left() && x <= ruler_rect.right() {
-                        painter.line_segment(
-                            [
-                                egui::pos2(x, ruler_rect.top()),
-                                egui::pos2(x, ruler_rect.bottom()),
-                            ],
-                            egui::Stroke::new(1.0, egui::Color32::LIGHT_GRAY),
-                        );
-                        painter.text(
-                            egui::pos2(x + 2.0, ruler_rect.top() + 2.0),
-                            egui::Align2::LEFT_TOP,
-                            format!("{:.1}s", time_sec),
-                            egui::FontId::default(),
-                            egui::Color32::WHITE,
-                        );
-                    }
-
-                    t += 1;
-                }
-            });
             ui.separator();
+
             // Show tracks
             let mut i = 0;
             while i < self.tracks.len() {
                 let track = &mut self.tracks[i];
-                if track.show(i, self.zoom_level, self.horizontal_scroll, ui) {
+                if track.show(i, toolbar.get_zoom_level(), self.horizontal_scroll, ui) {
                     self.tracks.remove(i);
                     self.audio_controller_sender
                         .try_send(AudioCommand::RemoveTrack(i as u32))
@@ -182,27 +163,9 @@ impl TrackManager {
                     i += 1;
                 }
             }
-            // Show read position line
-            let rect = ui.max_rect();
-            let x = left_padding
-                + rect.left()
-                + ((self.read_position as f32) * self.zoom_level / SAMPLES_PER_PIXEL)
-                - self.horizontal_scroll;
 
-            debug!(
-                read_position = self.read_position,
-                x_position = x,
-                "Drawing read position line"
-            );
+            self.show_read_pos_line(left_padding, toolbar.get_zoom_level(), ui);
 
-            let painter = ui.painter_at(rect);
-            painter.line_segment(
-                [
-                    egui::pos2(x, rect.top() + 30.0),
-                    egui::pos2(x, rect.top() + 30.0 + self.tracks.len() as f32 * 80.0),
-                ],
-                egui::Stroke::new(1.0, egui::Color32::RED),
-            );
             if ui.button("Add Track").clicked() {
                 self.add_track();
             }
@@ -214,9 +177,6 @@ impl TrackManager {
                 self.horizontal_scroll = self.horizontal_scroll.max(0.0);
             }
         }
-    }
-    pub fn push_audio_file(&mut self, audio_file: AudioFileData) {
-        self.audio_files.push(audio_file);
     }
 }
 

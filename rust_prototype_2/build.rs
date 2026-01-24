@@ -1,10 +1,12 @@
-use tracing::{error, info};
-fn main() {
-    info!("Building docs...");
-    let mut cmd = std::process::Command::new("cargo");
-    cmd.args(&["doc-md", "--no-deps", "--include_private", "-o", "docs/"]).status().unwrap();
-    let result = cmd.spawn();
-    if let Err(e) = result {
-        error!("Failed to spawn cargo doc-md process: {}", e);
+#![allow(unused_macros)]
+macro_rules! error {
+    ($($tokens: tt)*) => {
+        println!("cargo::error={}", format!($($tokens)*))
     }
 }
+macro_rules! warning {
+    ($($tokens: tt)*) => {
+        println!("cargo::warning={}", format!($($tokens)*))
+    }
+}
+fn main() {}

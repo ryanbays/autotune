@@ -1,4 +1,4 @@
-**rust_prototype_2 > audio > audio_controller**
+**autotune > audio > audio_controller**
 
 # Module: audio::audio_controller
 
@@ -14,7 +14,7 @@
 
 ---
 
-## rust_prototype_2::audio::audio_controller::AudioCommand
+## autotune::audio::audio_controller::AudioCommand
 
 *Enum*
 
@@ -47,7 +47,7 @@
 
 
 
-## rust_prototype_2::audio::audio_controller::AudioController
+## autotune::audio::audio_controller::AudioController
 
 *Struct*
 

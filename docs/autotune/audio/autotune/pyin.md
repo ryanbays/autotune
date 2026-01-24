@@ -1,4 +1,4 @@
-**rust_prototype_2 > audio > autotune > pyin**
+**autotune > audio > autotune > pyin**
 
 # Module: audio::autotune::pyin
 
@@ -20,7 +20,7 @@
 
 ---
 
-## rust_prototype_2::audio::autotune::pyin::PYINData
+## autotune::audio::autotune::pyin::PYINData
 
 *Struct*
 
@@ -45,7 +45,7 @@
 
 
 
-## rust_prototype_2::audio::autotune::pyin::cumulative_mean_normalized_difference
+## autotune::audio::autotune::pyin::cumulative_mean_normalized_difference
 
 *Function*
 
@@ -55,7 +55,7 @@ fn cumulative_mean_normalized_difference(d: &[f32], max_lag: usize) -> Vec<f32>
 
 
 
-## rust_prototype_2::audio::autotune::pyin::difference_function
+## autotune::audio::autotune::pyin::difference_function
 
 *Function*
 
@@ -65,7 +65,7 @@ fn difference_function(frame: &[f32], max_lag: usize) -> Vec<f32>
 
 
 
-## rust_prototype_2::audio::autotune::pyin::find_pitch_candidates
+## autotune::audio::autotune::pyin::find_pitch_candidates
 
 *Function*
 
@@ -75,7 +75,7 @@ fn find_pitch_candidates(cmnd: &[f32], threshold: f32, min_lag: usize, max_lag: 
 
 
 
-## rust_prototype_2::audio::autotune::pyin::frame_rms
+## autotune::audio::autotune::pyin::frame_rms
 
 *Function*
 
@@ -87,7 +87,7 @@ fn frame_rms(frame: &[f32]) -> f32
 
 
 
-## rust_prototype_2::audio::autotune::pyin::parabolic_interp
+## autotune::audio::autotune::pyin::parabolic_interp
 
 *Function*
 
@@ -97,7 +97,7 @@ fn parabolic_interp(cmnd: &[f32], tau: usize) -> f32
 
 
 
-## rust_prototype_2::audio::autotune::pyin::probabilistic_f0_selection
+## autotune::audio::autotune::pyin::probabilistic_f0_selection
 
 *Function*
 
@@ -107,7 +107,7 @@ fn probabilistic_f0_selection(f0_candidates: &[f32], candidate_probs: &[f32], si
 
 
 
-## rust_prototype_2::audio::autotune::pyin::pyin
+## autotune::audio::autotune::pyin::pyin
 
 *Function*
 

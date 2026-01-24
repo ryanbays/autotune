@@ -1,6 +1,6 @@
-**rust_prototype_2**
+**autotune**
 
-# Module: rust_prototype_2
+# Module: autotune
 
 ## Contents
 

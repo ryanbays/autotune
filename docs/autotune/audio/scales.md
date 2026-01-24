@@ -1,4 +1,4 @@
-**rust_prototype_2 > audio > scales**
+**autotune > audio > scales**
 
 # Module: audio::scales
 
@@ -19,7 +19,7 @@
 
 ---
 
-## rust_prototype_2::audio::scales::Key
+## autotune::audio::scales::Key
 
 *Struct*
 
@@ -49,7 +49,7 @@
 
 
 
-## rust_prototype_2::audio::scales::Note
+## autotune::audio::scales::Note
 
 *Enum*
 
@@ -84,7 +84,7 @@
 
 
 
-## rust_prototype_2::audio::scales::Scale
+## autotune::audio::scales::Scale
 
 *Enum*
 
@@ -110,7 +110,7 @@
 
 
 
-## rust_prototype_2::audio::scales::frequency_to_midi_note
+## autotune::audio::scales::frequency_to_midi_note
 
 *Function*
 

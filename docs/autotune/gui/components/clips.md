@@ -1,4 +1,4 @@
-**rust_prototype_2 > gui > components > clips**
+**autotune > gui > components > clips**
 
 # Module: gui::components::clips
 
@@ -10,7 +10,7 @@
 
 ---
 
-## rust_prototype_2::gui::components::clips::ClipManager
+## autotune::gui::components::clips::ClipManager
 
 *Struct*
 

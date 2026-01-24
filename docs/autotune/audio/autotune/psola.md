@@ -1,4 +1,4 @@
-**rust_prototype_2 > audio > autotune > psola**
+**autotune > audio > autotune > psola**
 
 # Module: audio::autotune::psola
 
@@ -13,7 +13,7 @@
 
 ---
 
-## rust_prototype_2::audio::autotune::psola::compute_target_pitch_spacing
+## autotune::audio::autotune::psola::compute_target_pitch_spacing
 
 *Function*
 
@@ -23,7 +23,7 @@ fn compute_target_pitch_spacing(pyin_result: &crate::audio::autotune::pyin::PYIN
 
 
 
-## rust_prototype_2::audio::autotune::psola::find_pitch_marks
+## autotune::audio::autotune::psola::find_pitch_marks
 
 *Function*
 
@@ -33,7 +33,7 @@ fn find_pitch_marks(pyin: &crate::audio::autotune::pyin::PYINData, sample_rate: 
 
 
 
-## rust_prototype_2::audio::autotune::psola::overlap_add
+## autotune::audio::autotune::psola::overlap_add
 
 *Function*
 
@@ -43,7 +43,7 @@ fn overlap_add(audio: &Vec<f32>, pitch_marks: &Vec<usize>, shifted_marks: &Vec<u
 
 
 
-## rust_prototype_2::audio::autotune::psola::psola
+## autotune::audio::autotune::psola::psola
 
 *Function*
 

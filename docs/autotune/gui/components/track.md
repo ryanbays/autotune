@@ -1,4 +1,4 @@
-**rust_prototype_2 > gui > components > track**
+**autotune > gui > components > track**
 
 # Module: gui::components::track
 
@@ -25,7 +25,7 @@
 
 ---
 
-## rust_prototype_2::gui::components::track::LEFT_SIDE_PADDING
+## autotune::gui::components::track::LEFT_SIDE_PADDING
 
 *Constant*: `f32`
 
@@ -34,13 +34,13 @@ and track
 
 
 
-## rust_prototype_2::gui::components::track::SAMPLES_PER_PIXEL
+## autotune::gui::components::track::SAMPLES_PER_PIXEL
 
 *Constant*: `f32`
 
 
 
-## rust_prototype_2::gui::components::track::Track
+## autotune::gui::components::track::Track
 
 *Struct*
 
@@ -65,7 +65,7 @@ and track
 
 
 
-## rust_prototype_2::gui::components::track::TrackManager
+## autotune::gui::components::track::TrackManager
 
 *Struct*
 
@@ -89,7 +89,7 @@ Struct that handles managing tracks and displaying in `egui`
 
 
 
-## rust_prototype_2::gui::components::track::TrackManagerCommand
+## autotune::gui::components::track::TrackManagerCommand
 
 *Enum*
 
@@ -101,7 +101,7 @@ Enum for cross-thread communication between the TrackManager and the AudioContro
 
 
 
-## rust_prototype_2::gui::components::track::TrackMenu
+## autotune::gui::components::track::TrackMenu
 
 *Struct*
 
@@ -126,7 +126,7 @@ Track menu that appears to configure the autotune settings for a track
 
 
 
-## rust_prototype_2::gui::components::track::calculate_pixels_per_second
+## autotune::gui::components::track::calculate_pixels_per_second
 
 *Function*
 

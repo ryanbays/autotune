@@ -1,4 +1,4 @@
-**rust_prototype_2 > audio > autotune**
+**autotune > audio > autotune**
 
 # Module: audio::autotune
 
@@ -24,43 +24,43 @@
 
 ---
 
-## rust_prototype_2::audio::autotune::FRAME_LENGTH
+## autotune::audio::autotune::FRAME_LENGTH
 
 *Constant*: `usize`
 
 
 
-## rust_prototype_2::audio::autotune::HOP_LENGTH
+## autotune::audio::autotune::HOP_LENGTH
 
 *Constant*: `usize`
 
 
 
-## rust_prototype_2::audio::autotune::MAX_F0
+## autotune::audio::autotune::MAX_F0
 
 *Constant*: `f32`
 
 
 
-## rust_prototype_2::audio::autotune::MIN_F0
+## autotune::audio::autotune::MIN_F0
 
 *Constant*: `f32`
 
 
 
-## rust_prototype_2::audio::autotune::PYIN_SIGMA
+## autotune::audio::autotune::PYIN_SIGMA
 
 *Constant*: `f32`
 
 
 
-## rust_prototype_2::audio::autotune::PYIN_THRESHOLD
+## autotune::audio::autotune::PYIN_THRESHOLD
 
 *Constant*: `f32`
 
 
 
-## rust_prototype_2::audio::autotune::compute_shifted_audio
+## autotune::audio::autotune::compute_shifted_audio
 
 *Function*
 

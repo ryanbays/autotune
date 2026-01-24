@@ -1,4 +1,4 @@
-**rust_prototype_2 > gui > components > titlebar**
+**autotune > gui > components > titlebar**
 
 # Module: gui::components::titlebar
 
@@ -10,7 +10,7 @@
 
 ---
 
-## rust_prototype_2::gui::components::titlebar::TitleBar
+## autotune::gui::components::titlebar::TitleBar
 
 *Struct*
 

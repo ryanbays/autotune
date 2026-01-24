@@ -1,4 +1,4 @@
-**rust_prototype_2 > gui**
+**autotune > gui**
 
 # Module: gui
 
@@ -23,7 +23,7 @@
 
 
 
-## rust_prototype_2::gui::run
+## autotune::gui::run
 
 *Function*
 

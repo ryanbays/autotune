@@ -1,4 +1,4 @@
-**rust_prototype_2 > audio > file**
+**autotune > audio > file**
 
 # Module: audio::file
 
@@ -10,7 +10,7 @@
 
 ---
 
-## rust_prototype_2::audio::file::AudioFileData
+## autotune::audio::file::AudioFileData
 
 *Struct*
 

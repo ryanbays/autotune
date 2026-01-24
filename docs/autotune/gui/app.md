@@ -1,4 +1,4 @@
-**rust_prototype_2 > gui > app**
+**autotune > gui > app**
 
 # Module: gui::app
 
@@ -10,7 +10,7 @@
 
 ---
 
-## rust_prototype_2::gui::app::App
+## autotune::gui::app::App
 
 *Struct*
 

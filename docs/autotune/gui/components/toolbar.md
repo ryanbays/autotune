@@ -1,4 +1,4 @@
-**rust_prototype_2 > gui > components > toolbar**
+**autotune > gui > components > toolbar**
 
 # Module: gui::components::toolbar
 
@@ -10,7 +10,7 @@
 
 ---
 
-## rust_prototype_2::gui::components::toolbar::Toolbar
+## autotune::gui::components::toolbar::Toolbar
 
 *Struct*
 

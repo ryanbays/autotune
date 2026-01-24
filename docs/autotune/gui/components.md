@@ -1,4 +1,4 @@
-**rust_prototype_2 > gui > components**
+**autotune > gui > components**
 
 # Module: gui::components
 

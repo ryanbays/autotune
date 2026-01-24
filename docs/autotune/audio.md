@@ -1,4 +1,4 @@
-**rust_prototype_2 > audio**
+**autotune > audio**
 
 # Module: audio
 
@@ -22,7 +22,7 @@
 
 ---
 
-## rust_prototype_2::audio::Audio
+## autotune::audio::Audio
 
 *Struct*
 
@@ -70,7 +70,7 @@ Thread-safe access to PYIN data is ensured via RwLock.
 
 
 
-## rust_prototype_2::audio::compute_pyin_blocking
+## autotune::audio::compute_pyin_blocking
 
 *Function*
 
@@ -87,7 +87,7 @@ fn compute_pyin_blocking(sample_rate: u32, left: Vec<f32>, right: Vec<f32>, pyin
 
 
 
-## rust_prototype_2::audio::interleave_stereo
+## autotune::audio::interleave_stereo
 
 *Function*
 

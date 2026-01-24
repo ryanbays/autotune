@@ -1,8 +1,6 @@
 pub mod app;
 pub mod components;
 
-use tracing::{debug, info};
-
 #[cfg(unix)]
 pub fn run() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {

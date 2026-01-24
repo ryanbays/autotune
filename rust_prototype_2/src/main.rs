@@ -1,8 +1,4 @@
-#![allow(dead_code, unused)]
 use clap::Parser;
-use std::time::Duration;
-use tokio::{sync::mpsc, time::sleep};
-use tracing::{debug, error, info, warn};
 use tracing_subscriber::{EnvFilter, fmt};
 
 mod audio;

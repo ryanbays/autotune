@@ -6,17 +6,24 @@ use egui::Sense;
 use tokio::sync::mpsc;
 use tracing::{debug, error};
 
+
 const SAMPLES_PER_PIXEL: f32 = 441.0;
+/// Constant that defines the amount of pixels to the left of the timeline ruler
+/// and track
 const LEFT_SIDE_PADDING: f32 = 50.0;
 
+/// Helper function that calculates the number of pixels a second of audio takes up based on the sample rate
 pub fn calculate_pixels_per_second(sample_rate: u32, zoom_level: f32) -> f32 {
     sample_rate as f32 / SAMPLES_PER_PIXEL * zoom_level
 }
 
+/// Enum for cross-thread communication between the TrackManager and the AudioController
 pub enum TrackManagerCommand {
     AddAudioClip(AudioFileData),
     SetReadPosition(usize),
 }
+
+/// Struct that handles managing tracks and displaying in `egui`
 pub struct TrackManager {
     tracks: Vec<Track>,
     horizontal_scroll: f32,
@@ -26,6 +33,7 @@ pub struct TrackManager {
 }
 
 impl TrackManager {
+    /// Creates a new TrackManager with the given receiver and audio controller sender
     pub fn new(
         receiver: mpsc::Receiver<TrackManagerCommand>,
         audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>,
@@ -38,7 +46,7 @@ impl TrackManager {
             audio_controller_sender,
         }
     }
-
+    /// Adds a new track to the TrackManager and returns its ID
     pub fn add_track(&mut self) -> u32 {
         let track_id = self.tracks.len() as u32;
         let track = Track::new(track_id, self.audio_controller_sender.clone());
@@ -46,7 +54,9 @@ impl TrackManager {
         self.tracks.push(track);
         track_id
     }
-
+    /// Internal function to send commands to the AudioController from the TrackManager
+    /// This is non-blocking so if there is nothing in the recv queue it moves on instantly
+    /// this means that there may be slight inaccuracies at frame time
     fn audio_controller_communication(&mut self, clip_manager: &mut ClipManager) {
         self.audio_controller_sender
             .try_send(AudioCommand::BroadcastPosition)
@@ -64,6 +74,7 @@ impl TrackManager {
             }
         }
     }
+    /// Internal function to draw the timeline ruler above the tracks
     fn show_timeline_ruler(&self, zoom_level: f32, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let ruler_width = ui.available_width();
@@ -113,6 +124,7 @@ impl TrackManager {
             }
         });
     }
+    /// Internal function to draw a line indicating the current read position
     fn show_read_pos_line(&self, zoom_level: f32, ui: &mut egui::Ui) {
         let rect = ui.max_rect();
         let x = LEFT_SIDE_PADDING
@@ -131,6 +143,10 @@ impl TrackManager {
             egui::Stroke::new(1.0, egui::Color32::RED),
         );
     }
+    /// Displays the UI:
+    /// * Timeline ruler
+    /// * Read position
+    /// * All the tracks
     pub fn show(
         &mut self,
         clip_manager: &mut components::clips::ClipManager,
@@ -176,6 +192,7 @@ impl TrackManager {
     }
 }
 
+/// Track menu that appears to configure the autotune settings for a track
 #[derive(Clone)]
 struct TrackMenu {
     open: bool,
@@ -195,6 +212,7 @@ impl TrackMenu {
             volume_level: 100,
         }
     }
+    /// Shows a floating window where the autotune can be configured for a track
     pub fn show_menu(
         &mut self,
         id: u32,

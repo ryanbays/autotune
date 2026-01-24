@@ -54,7 +54,11 @@ impl Toolbar {
                 });
                 ui.horizontal(|ui| {
                     ui.label("Zoom:");
-                    ui.add(egui::Slider::new(&mut self.zoom_level, 0.01..=10.0).text("x"))
+                    ui.add(
+                        egui::Slider::new(&mut self.zoom_level, 0.01..=10.0)
+                            .text("x")
+                            .logarithmic(true),
+                    )
                 });
                 ui.horizontal(|ui| {
                     ui.label("Volume:");

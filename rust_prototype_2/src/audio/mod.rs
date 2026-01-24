@@ -1,6 +1,7 @@
 pub mod audio_controller;
 pub mod autotune;
 pub mod file;
+pub mod scales;
 
 use crate::audio::autotune::pyin::{self, PYINData};
 use std::sync::{Arc, RwLock};
@@ -100,6 +101,7 @@ impl Audio {
     /// Starts PYIN analysis on a background OS thread and returns immediately.
     /// Store the JoinHandle if you want (optional). If you drop it, it still runs.
     pub fn perform_pyin_background(&mut self) -> thread::JoinHandle<()> {
+        self.pyin = Arc::new(RwLock::new(None)); // Reset PYIN data
         let left = self.left.clone();
         let right = self.right.clone();
         let sample_rate = self.sample_rate;

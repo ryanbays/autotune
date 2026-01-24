@@ -309,7 +309,6 @@ impl AudioController {
                     *self.playing.lock().unwrap() = false;
                 }
                 AudioCommand::SetVolume(volume) => {
-                    debug!("AudioController: SetVolume command received: {}", volume);
                     *self.volume.lock().unwrap() = volume;
                 }
                 AudioCommand::ClearBuffer => {

@@ -32,7 +32,7 @@
 
 ### [`audio::scales`](audio/scales.md)
 
-*1 function, 1 struct, 2 enums*
+*1 struct, 2 enums, 3 functions*
 
 ### [`gui`](gui.md)
 
@@ -44,7 +44,7 @@
 
 ### [`gui::components`](gui/components.md)
 
-*4 modules*
+*5 modules*
 
 ### [`gui::components::clips`](gui/components/clips.md)
 
@@ -60,5 +60,9 @@
 
 ### [`gui::components::track`](gui/components/track.md)
 
-*1 enum, 1 function, 2 constants, 3 structs*
+*1 enum, 1 function, 2 constants, 2 structs*
+
+### [`gui::components::track_menu`](gui/components/track_menu.md)
+
+*1 struct, 2 constants, 5 functions*
 

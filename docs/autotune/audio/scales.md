@@ -16,6 +16,8 @@
 **Functions**
 
 - [`frequency_to_midi_note`](#frequency_to_midi_note)
+- [`midi_note_to_frequency`](#midi_note_to_frequency)
+- [`note_name_to_midi_note`](#note_name_to_midi_note)
 
 ---
 
@@ -116,6 +118,26 @@
 
 ```rust
 fn frequency_to_midi_note(freq: f32) -> f32
+```
+
+
+
+## autotune::audio::scales::midi_note_to_frequency
+
+*Function*
+
+```rust
+fn midi_note_to_frequency(midi_note: f32) -> f32
+```
+
+
+
+## autotune::audio::scales::note_name_to_midi_note
+
+*Function*
+
+```rust
+fn note_name_to_midi_note(name: &str) -> anyhow::Result<f32, String>
 ```
 
 

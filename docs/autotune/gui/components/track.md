@@ -8,7 +8,6 @@
 
 - [`Track`](#track)
 - [`TrackManager`](#trackmanager) - Struct that handles managing tracks and displaying in `egui`
-- [`TrackMenu`](#trackmenu) - Track menu that appears to configure the autotune settings for a track
 
 **Enums**
 
@@ -49,7 +48,7 @@ and track
 - `audio: crate::audio::Audio`
 - `muted: bool`
 - `soloed: bool`
-- `menu: TrackMenu`
+- `menu: crate::gui::components::track_menu::TrackMenu`
 - `audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>`
 
 **Methods:**
@@ -98,31 +97,6 @@ Enum for cross-thread communication between the TrackManager and the AudioContro
 **Variants:**
 - `AddAudioClip(crate::audio::file::AudioFileData)`
 - `SetReadPosition(usize)`
-
-
-
-## autotune::gui::components::track::TrackMenu
-
-*Struct*
-
-Track menu that appears to configure the autotune settings for a track
-
-**Fields:**
-- `open: bool`
-- `horizontal_scroll: f32`
-- `vertical_scroll: f32`
-- `zoom_level: f32`
-- `volume_level: u32`
-
-**Methods:**
-
-- `fn new() -> Self`
-- `fn show_menu(self: & mut Self, id: u32, audio: & mut Audio, _ui: & mut egui::Ui, ctx: &egui::Context)` - Shows a floating window where the autotune can be configured for a track
-
-**Trait Implementations:**
-
-- **Clone**
-  - `fn clone(self: &Self) -> TrackMenu`
 
 
 

@@ -2,6 +2,7 @@
 name = "autotune"
 version = "0.1.1"
 edition = "2024"
+build = "build.rs"
 
 [lib]
 name = "autotune"
@@ -22,3 +23,4 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 
 [build-dependencies]
+rust-to-mermaid = {path = "rust-to-mermaid"}

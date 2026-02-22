@@ -1,0 +1,3 @@
+[submodule "rust-to-mermaid"]
+	path = rust-to-mermaid
+	url = https://github.com/ryanbays/rust-to-mermaid/

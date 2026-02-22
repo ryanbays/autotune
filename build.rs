@@ -1,12 +1,7 @@
-#![allow(unused_macros)]
-macro_rules! error {
-    ($($tokens: tt)*) => {
-        println!("cargo::error={}", format!($($tokens)*))
-    }
+fn main() {
+    let config = rust_to_mermaid::build_diagram::DiagramConfig {
+        main_title: "Autotune",
+        ..Default::default()
+    };
+    let _ = rust_to_mermaid::build_diagram::generate_diagrams_with_config(&config);
 }
-macro_rules! warning {
-    ($($tokens: tt)*) => {
-        println!("cargo::warning={}", format!($($tokens)*))
-    }
-}
-fn main() {}

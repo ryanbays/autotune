@@ -1,5 +1,6 @@
 use crate::audio::file::AudioFileData;
 
+/// Manages the list of audio clips and their display in the GUI
 pub struct ClipManager {
     clips: Vec<AudioFileData>,
 }
@@ -8,10 +9,10 @@ impl ClipManager {
     pub fn new() -> Self {
         ClipManager { clips: Vec::new() }
     }
-
     pub fn add_clip(&mut self, clip: AudioFileData) {
         self.clips.push(clip);
     }
+    /// Displays the list of audio clips in a side panel with drag-and-drop support
     pub fn show(&self, ctx: &egui::Context) {
         egui::SidePanel::left("audio_list")
             .resizable(true)

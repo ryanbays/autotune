@@ -5,6 +5,7 @@ use egui::TopBottomPanel;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
+/// Custom title bar component that includes the application title and a file menu for loading audio clips.
 pub struct TitleBar {
     title: String,
     track_manager_sender: mpsc::Sender<track::TrackManagerCommand>,
@@ -20,7 +21,7 @@ impl TitleBar {
             title: title.into(),
         }
     }
-
+    /// Displays the title bar at the top of the application window with buttons
     pub fn show(&mut self, ctx: &egui::Context) {
         TopBottomPanel::top("title_bar").show(ctx, |ui| {
             ui.add_space(4.0);
@@ -63,8 +64,10 @@ impl TitleBar {
             ui.add_space(4.0);
         });
     }
+    /// Windows handles this so this functions does nothing.
     #[cfg(windows)]
     fn handle_window_control(&self, _ui: &mut egui::Ui, _ctx: &egui::Context) {}
+    /// On UNIX systems, this function adds custom buttons and window controls
     #[cfg(unix)]
     fn handle_window_control(&self, ui: &mut egui::Ui, ctx: &egui::Context) {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

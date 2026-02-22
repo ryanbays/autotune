@@ -7,8 +7,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error};
 
 const SAMPLES_PER_PIXEL: f32 = 441.0;
-/// Constant that defines the amount of pixels to the left of the timeline ruler
-/// and track
+/// Constant that defines the amount of pixels to the left of the timeline ruler and track
 pub const LEFT_SIDE_PADDING: f32 = 50.0;
 
 /// Helper function that calculates the number of pixels a second of audio takes up based on the sample rate
@@ -142,7 +141,7 @@ impl TrackManager {
             egui::Stroke::new(1.0, egui::Color32::RED),
         );
     }
-    /// Displays the UI:
+    /// Displays the UI
     /// * Timeline ruler
     /// * Read position
     /// * All the tracks
@@ -192,6 +191,7 @@ impl TrackManager {
 }
 
 #[derive(Clone)]
+/// Struct that represents an individual track in the TrackManager
 pub struct Track {
     id: u32,
     audio: Audio,
@@ -214,6 +214,7 @@ impl Track {
             audio_controller_sender,
         }
     }
+    /// Internal function to send an UpdateTrackAudio command to the AudioController with the current audio data of the track
     pub fn send_update(&self) {
         debug!(track_id = self.id, "Sending UpdateTrackAudio command");
         let audio_data = self.audio.clone();
@@ -226,6 +227,7 @@ impl Track {
         });
     }
 
+    /// Displays the track UI, including the track name, solo/mute buttons, delete button, and the waveform display area which also serves as a drop zone for audio clips.
     pub fn show(
         &mut self,
         index: usize,

@@ -1,0 +1,37 @@
+---
+config:
+  title: Project Tests
+  layout: elk
+  theme: dark
+  elk:
+    mergeEdges: true
+    nodePlacementStrategy: BRANDES_KOEPF
+---
+classDiagram
+    direction TB
+    namespace `audio/autotune/psola.rs` {
+        class `audio/autotune/psola_functions` {
+            test_find_pitch_marks_basic_monotone()
+            test_compute_target_pitch_spacing_identity_when_same_f0()
+            test_compute_target_pitch_spacing_changes_spacing_with_pitch_shift()
+            test_overlap_add_no_panics_and_nonzero_output()
+            test_psola_handles_empty_inputs()
+            test_psola_runs_with_simple_constant_pitch()
+        }
+    }
+    namespace `audio/autotune/pyin.rs` {
+        class `audio/autotune/pyin_functions` {
+            test_frame_rms_basic_and_empty()
+            test_difference_function_basic()
+            test_cumulative_mean_normalized_difference_non_negative()
+            test_find_pitch_candidates_detects_minimum()
+            test_find_pitch_candidates_returns_dummy_when_no_minima()
+            test_probabilistic_f0_selection_empty_input()
+            test_probabilistic_f0_selection_picks_highest_prob_without_continuity()
+            test_probabilistic_f0_selection_prefers_continuous_candidate()
+            test_pyin_detects_clean_sine_pitch()
+            test_pyin_treats_silence_as_unvoiced()
+            test_pyin_frequency_outside_range_mostly_unvoiced()
+            test_pyin_constants_are_sane()
+        }
+    }

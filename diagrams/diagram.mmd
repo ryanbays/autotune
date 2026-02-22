@@ -1,0 +1,370 @@
+---
+config:
+  title: Project
+  layout: elk
+  theme: dark
+  elk:
+    mergeEdges: true
+    nodePlacementStrategy: BRANDES_KOEPF
+---
+classDiagram
+    direction TB
+    namespace `audio/audio_controller.rs` {
+        class `AudioCommand` {
+            <<enum>>
+            <<audio/audio_controller>>
+            SendTrack
+            RemoveTrack
+            Play
+            Stop
+            SetReadPosition
+            BroadcastPosition
+            SetVolume
+            Shutdown
+        }
+        class `AudioController` {
+            <<struct>>
+            <<audio/audio_controller>>
+            receiver
+            track_manager_sender
+            tracks
+            audio_buffer
+            volume
+            position
+            playing
+            _stream
+        }
+    }
+    namespace `audio/autotune/psola.rs` {
+        class `DummyPYIN` {
+            <<struct>>
+            <<audio/autotune/psola>>
+            f0
+            voiced_flag
+            voiced_prob
+        }
+    }
+    namespace `audio/autotune/pyin.rs` {
+        class `PYINData` {
+            <<struct>>
+            <<audio/autotune/pyin>>
+            f0
+            voiced_flag
+            voiced_prob
+        }
+    }
+    namespace `audio/file.rs` {
+        class `AudioFileData` {
+            <<struct>>
+            <<audio/file>>
+            samples
+            n_samples
+            sample_rate
+            n_channels
+            file_path
+        }
+    }
+    namespace `audio/mod.rs` {
+        class `Audio` {
+            <<struct>>
+            <<audio/mod>>
+            sample_rate
+            length
+            left
+            right
+            pyin
+            desired_f0
+        }
+    }
+    namespace `audio/scales.rs` {
+        class `Note` {
+            <<enum>>
+            <<audio/scales>>
+            C
+            Cs
+            D
+            Ds
+            E
+            F
+            Fs
+            G
+            Gs
+            A
+            As
+            B
+        }
+        class `Scale` {
+            <<enum>>
+            <<audio/scales>>
+            Major
+            Minor
+            Blues
+            Pentatonic
+            Chromatic
+        }
+        class `Key` {
+            <<struct>>
+            <<audio/scales>>
+            root
+            scale
+        }
+    }
+    namespace `gui/app.rs` {
+        class `App` {
+            <<struct>>
+            <<gui/app>>
+            titlebar
+            toolbar
+            clip_manager
+            track_manager
+            audio_controller_sender
+        }
+    }
+    namespace `gui/components/clips.rs` {
+        class `ClipManager` {
+            <<struct>>
+            <<gui/components/clips>>
+            clips
+        }
+    }
+    namespace `gui/components/titlebar.rs` {
+        class `TitleBar` {
+            <<struct>>
+            <<gui/components/titlebar>>
+            title
+            track_manager_sender
+        }
+    }
+    namespace `gui/components/toolbar.rs` {
+        class `Toolbar` {
+            <<struct>>
+            <<gui/components/toolbar>>
+            zoom_level
+            volume_level
+            audio_controller_sender
+        }
+    }
+    namespace `gui/components/track.rs` {
+        class `Track` {
+            <<struct>>
+            <<gui/components/track>>
+            id
+            audio
+            muted
+            soloed
+            menu
+            audio_controller_sender
+        }
+        class `TrackManager` {
+            <<struct>>
+            <<gui/components/track>>
+            tracks
+            horizontal_scroll
+            receiver
+            read_position
+            audio_controller_sender
+        }
+        class `TrackManagerCommand` {
+            <<enum>>
+            <<gui/components/track>>
+            AddAudioClip
+            SetReadPosition
+        }
+    }
+    namespace `gui/components/track_menu.rs` {
+        class `TrackMenu` {
+            <<struct>>
+            <<gui/components/track_menu>>
+            open
+            horizontal_scroll
+            vertical_scroll
+            zoom_level
+            cached_desired_f0
+            apply_autotune
+            volume_level
+        }
+    }
+    namespace `main.rs` {
+        class `Args` {
+            <<struct>>
+            <<main>>
+            log_level
+        }
+    }
+    namespace `gui/mod.rs` {
+        class `gui/mod_functions` {
+            run()
+            run()
+        }
+    }
+    namespace `gui/components/clips.rs` {
+        class `gui/components/clips_functions` {
+            new()
+            add_clip()
+            show() Displays the list of audio clips in a side panel with drag-and-drop support
+        }
+    }
+    namespace `gui/components/track.rs` {
+        class `gui/components/track_functions` {
+            calculate_pixels_per_second() Helper function that calculates the number of pixels a second of audio takes up based on the sample rate
+            new() Creates a new TrackManager with the given receiver and audio controller sender
+            add_track() Adds a new track to the TrackManager and returns its ID
+            audio_controller_communication() Internal function to send commands to the AudioController from the TrackManager
+            show_timeline_ruler() Internal function to draw the timeline ruler above the tracks
+            show_read_pos_line() Internal function to draw a line indicating the current read position
+            show() Displays the UI
+            new()
+            send_update() Internal function to send an UpdateTrackAudio command to the AudioController with the current audio data of the track
+            show() Displays the track UI, including the track name, solo/mute buttons, delete button, and the waveform display area which also serves as a drop zone for audio clips.
+        }
+    }
+    namespace `gui/app.rs` {
+        class `gui/app_functions` {
+            new()
+            update()
+            on_exit()
+        }
+    }
+    namespace `audio/scales.rs` {
+        class `audio/scales_functions` {
+            from_str()
+            into()
+            from_str()
+            from_str()
+            new()
+            get_midi_scale()
+            get_scale_note_names()
+            frequency_to_midi_note()
+            midi_note_to_frequency()
+            note_name_to_midi_note()
+        }
+    }
+    namespace `audio/autotune/psola.rs` {
+        class `audio/autotune/psola_functions` {
+            find_pitch_marks()
+            compute_target_pitch_spacing()
+            overlap_add()
+            psola()
+            new()
+            as_pyin_data()
+        }
+    }
+    namespace `gui/components/toolbar.rs` {
+        class `gui/components/toolbar_functions` {
+            new()
+            get_zoom_level()
+            show() Displays the toolbar at the top of the application window with playback controls, zoom slider, and volume slider.
+        }
+    }
+    namespace `audio/autotune/mod.rs` {
+        class `audio/autotune/mod_functions` {
+            compute_shifted_audio()
+        }
+    }
+    namespace `audio/autotune/pyin.rs` {
+        class `audio/autotune/pyin_functions` {
+            new()
+            f0()
+            voiced_flag()
+            voiced_prob()
+            frame_rms() Simple RMS energy of a frame, used for voicing / silence detection.
+            difference_function()
+            cumulative_mean_normalized_difference()
+            parabolic_interp()
+            find_pitch_candidates()
+            probabilistic_f0_selection()
+            pyin()
+            sine_wave()
+        }
+    }
+    namespace `gui/components/titlebar.rs` {
+        class `gui/components/titlebar_functions` {
+            new()
+            show() Displays the title bar at the top of the application window with buttons
+            handle_window_control()
+            handle_window_control()
+        }
+    }
+    namespace `main.rs` {
+        class `main_functions` {
+            init_logger() Initialize the logger with the specified log level
+            main()
+        }
+    }
+    namespace `audio/audio_controller.rs` {
+        class `audio/audio_controller_functions` {
+            new()
+            fill_output_buffer() Fills the output buffer with audio data from the shared audio buffer
+            mix_tracks() Mixes all tracks into the audio buffer, applying autotuning if desired F0 is provided.
+            run() Main loop processing incoming audio commands
+        }
+    }
+    namespace `audio/file.rs` {
+        class `audio/file_functions` {
+            load() Uses rodio::Decoder, which yields interleaved samples for multichannel audio.
+            new()
+            save() Save audio data to a WAV file (16-bit PCM, interleaved channels).
+            to_audio()
+            from_audio()
+            n_channels()
+            sample_rate()
+            n_samples()
+            len_samples_raw() Total number of interleaved sample values (frames * channels).
+            is_empty()
+            samples()
+        }
+    }
+    namespace `gui/components/track_menu.rs` {
+        class `gui/components/track_menu_functions` {
+            frame_to_screen()
+            midi_to_y() Map a MIDI value to a y coordinate using fixed spacing per note, taking
+            note_range_to_height() Height of the full note range based on fixed vertical spacing.
+            freq_to_y()
+            y_to_freq()
+            new()
+            open()
+            is_open()
+            show_menu() Shows a floating window where the autotune can be configured for a track
+        }
+    }
+    namespace `audio/mod.rs` {
+        class `audio/mod_functions` {
+            new()
+            sample_rate()
+            length()
+            left()
+            right()
+            get_pyin() Get a cloned PYIN data (if available) in a thread-safe way.
+            get_pyin_blocking()
+            pyin_handle() Expose shared handle if callers want to manage locking themselves.
+            perform_pyin() Synchronous wrapper.
+            perform_pyin_background() Starts PYIN analysis on a background OS thread and returns immediately.
+            insert_audio_at() Inserts the audio from `other` into `self` starting at `position`. (Overwrites existing
+            add_audio_at() Adds the audio from `other` into `self` starting at `position`. (Adds to existing
+            compute_pyin_blocking() Internal helper: runs pyin on left/right on the current thread.
+            interleave_stereo() Helper function to interleave two stereo channels into a single output buffer.
+        }
+    }
+    App *-- AudioCommand : AudioCommand audio_controller_sender
+    App *-- ClipManager : ClipManager clip_manager
+    App *-- TitleBar : TitleBar titlebar
+    App *-- Toolbar : Toolbar toolbar
+    App *-- TrackManager : TrackManager track_manager
+    Audio *-- PYINData : PYINData pyin
+    AudioController *-- Audio : Audio audio_buffer
+    AudioController *-- Audio : Audio tracks
+    AudioController *-- AudioCommand : AudioCommand receiver
+    AudioController *-- TrackManagerCommand : TrackManagerCommand track_manager_sender
+    ClipManager *-- AudioFileData : AudioFileData clips
+    TitleBar *-- TrackManagerCommand : TrackManagerCommand track_manager_sender
+    Toolbar *-- AudioCommand : AudioCommand audio_controller_sender
+    Track *-- AudioCommand : AudioCommand audio_controller_sender
+    TrackManager *-- AudioCommand : AudioCommand audio_controller_sender
+    TrackManager *-- Track : Track tracks
+    TrackManager *-- TrackManagerCommand : TrackManagerCommand receiver
+note for `AudioController` "Controller for managing audio playback using CPAL"
+note for `ClipManager` "Manages the list of audio clips and their display in the GUI"
+note for `TitleBar` "Custom title bar component that includes the application title and a file menu for loading audio clips."
+note for `Track` "Struct that represents an individual track in the TrackManager"
+note for `TrackManager` "Struct that handles managing tracks and displaying in `egui`"
+note for `TrackManagerCommand` "Enum for cross-thread communication between the TrackManager and the AudioController"

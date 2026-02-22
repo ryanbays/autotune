@@ -1,6 +1,7 @@
 pub mod app;
 pub mod components;
 
+/// Run the GUI app with UNIX-specific options
 #[cfg(unix)]
 pub fn run() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
@@ -17,6 +18,7 @@ pub fn run() -> Result<(), eframe::Error> {
     Ok(())
 }
 
+/// Run the GUI app with Windows-specific options
 #[cfg(windows)]
 pub fn run() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
@@ -33,4 +35,3 @@ pub fn run() -> Result<(), eframe::Error> {
     )?;
     Ok(())
 }
-

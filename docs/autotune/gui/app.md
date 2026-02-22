@@ -19,7 +19,6 @@
 - `toolbar: components::toolbar::Toolbar`
 - `clip_manager: components::clips::ClipManager`
 - `track_manager: components::track::TrackManager`
-- `track_manager_sender: mpsc::Sender<components::track::TrackManagerCommand>`
 - `audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>`
 
 **Methods:**

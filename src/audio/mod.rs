@@ -112,13 +112,6 @@ impl Audio {
         })
     }
 
-    /// Returns interleaved stereo samples as a Vec<f32>
-    pub fn interleaved(&self) -> Vec<f32> {
-        let mut out = vec![0.0; self.length * 2];
-        interleave_stereo(&self.left, &self.right, &mut out);
-        out
-    }
-
     /// Inserts the audio from `other` into `self` starting at `position`. (Overwrites existing
     /// samples)
     /// If `other` extends beyond the current length of `self`, `self` is resized accordingly.

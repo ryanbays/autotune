@@ -12,10 +12,6 @@ impl ClipManager {
     pub fn add_clip(&mut self, clip: AudioFileData) {
         self.clips.push(clip);
     }
-
-    pub fn get_clips(&self) -> &Vec<AudioFileData> {
-        &self.clips
-    }
     pub fn show(&self, ctx: &egui::Context) {
         egui::SidePanel::left("audio_list")
             .resizable(true)

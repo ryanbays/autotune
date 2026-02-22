@@ -33,10 +33,9 @@
 
 - `fn new(root: Note, scale: Scale) -> Self`
 - `fn get_midi_scale(self: &Self, octave1: i8, octave2: i8) -> Vec<u8>`
-- `fn get_scale_frequencies(self: &Self, octave1: i8, octave2: i8) -> Vec<f32>`
 - `fn get_scale_note_names(self: &Self, octave1: i8, octave2: i8) -> Vec<String>`
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 

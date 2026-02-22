@@ -49,7 +49,6 @@ Thread-safe access to PYIN data is ensured via RwLock.
 - `fn pyin_handle(self: &Self) -> Arc<RwLock<Option<PYINData>>>` - Expose shared handle if callers want to manage locking themselves.
 - `fn perform_pyin(self: & mut Self)` - Synchronous wrapper.
 - `fn perform_pyin_background(self: & mut Self) -> thread::JoinHandle<()>` - Starts PYIN analysis on a background OS thread and returns immediately.
-- `fn interleaved(self: &Self) -> Vec<f32>` - Returns interleaved stereo samples as a Vec<f32>
 - `fn insert_audio_at(self: & mut Self, position: usize, other: &Audio) -> anyhow::Result<()>` - Inserts the audio from `other` into `self` starting at `position`. (Overwrites existing
 - `fn add_audio_at(self: & mut Self, position: usize, other: &Audio) -> anyhow::Result<()>` - Adds the audio from `other` into `self` starting at `position`. (Adds to existing
 

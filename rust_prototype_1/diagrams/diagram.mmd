@@ -1,0 +1,242 @@
+---
+config:
+  title: Project
+  layout: elk
+  theme: dark
+  elk:
+    mergeEdges: true
+    nodePlacementStrategy: BRANDES_KOEPF
+---
+classDiagram
+    direction TB
+    namespace `audio/autotune/pyin.rs` {
+        class `PYinResult` {
+            <<struct>>
+            <<audio/autotune/pyin>>
+            f0
+            voiced_flag
+            voiced_prob
+        }
+    }
+    namespace `audio/clip_manager.rs` {
+        class `ClipManager` {
+            <<struct>>
+            <<audio/clip_manager>>
+            clips
+            clip_receiver
+            clip_sender
+        }
+    }
+    namespace `audio/file.rs` {
+        class `AudioFile` {
+            <<struct>>
+            <<audio/file>>
+            samples
+            sample_rate
+            channels
+            pyin_result
+        }
+    }
+    namespace `audio/mod.rs` {
+        class `Note` {
+            <<enum>>
+            <<audio/mod>>
+            C
+            Cs
+            D
+            Ds
+            E
+            F
+            Fs
+            G
+            Gs
+            A
+            As
+            B
+            Db
+            Eb
+            Gb
+            Ab
+            Bb
+        }
+        class `Scale` {
+            <<enum>>
+            <<audio/mod>>
+            Major
+            Minor
+            Blues
+            Pentatonic
+            Chromatic
+        }
+        class `AudioClip` {
+            <<struct>>
+            <<audio/mod>>
+            name
+            sample_rate
+            n_samples
+            waveform
+            uuid
+        }
+        class `Key` {
+            <<struct>>
+            <<audio/mod>>
+            root
+            scale
+        }
+    }
+    namespace `gui/clips.rs` {
+        class `ClipPanel` {
+            <<struct>>
+            <<gui/clips>>
+            clips
+        }
+        class `ClipUI` {
+            <<struct>>
+            <<gui/clips>>
+            name
+            uuid
+            drag_delta
+        }
+    }
+    namespace `gui/mod.rs` {
+        class `AutotuneApp` {
+            <<struct>>
+            <<gui/mod>>
+            tracks
+            title_bar
+            clip_panel
+            clip_manager
+        }
+    }
+    namespace `gui/titlebar.rs` {
+        class `CustomTitleBar` {
+            <<struct>>
+            <<gui/titlebar>>
+            title
+            dragging
+        }
+    }
+    namespace `gui/track.rs` {
+        class `Track` {
+            <<struct>>
+            <<gui/track>>
+            name
+            volume
+            pan
+            muted
+            soloed
+            height
+            color
+            clips
+        }
+    }
+    namespace `main.rs` {
+        class `Args` {
+            <<struct>>
+            <<main>>
+            nogui
+            scale
+            input
+            output
+        }
+    }
+    namespace `gui/track.rs` {
+        class `gui/track_functions` {
+            new()
+            show()
+        }
+    }
+    namespace `gui/titlebar.rs` {
+        class `gui/titlebar_functions` {
+            new()
+            show()
+        }
+    }
+    namespace `audio/file.rs` {
+        class `audio/file_functions` {
+            load() Load an audio file from the given path
+            new()
+            save() Save audio data to a WAV file
+            run_pyin() Run PYin pitch detection on the audio samples
+            get_pyin_result()
+            get_channels()
+            get_samples()
+            get_sample_rate()
+            get_n_samples()
+        }
+    }
+    namespace `audio/clip_manager.rs` {
+        class `audio/clip_manager_functions` {
+            new()
+            update()
+            load_through_rfd()
+        }
+    }
+    namespace `gui/mod.rs` {
+        class `gui/mod_functions` {
+            default()
+            update()
+        }
+    }
+    namespace `main.rs` {
+        class `main_functions` {
+            main()
+        }
+    }
+    namespace `audio/mod.rs` {
+        class `audio/mod_functions` {
+            from_str()
+            from_str()
+            from_str()
+            get_midi_scale()
+            get_scale_frequencies()
+        }
+    }
+    namespace `audio/autotune/mod.rs` {
+        class `audio/autotune/mod_functions` {
+            snap_to_scale()
+            pitch_shift()
+        }
+    }
+    namespace `audio/autotune/pyin.rs` {
+        class `audio/autotune/pyin_functions` {
+            snap_to_scale()
+            difference_function()
+            cumulative_mean_normalized_difference()
+            get_pitch_period_candidates()
+            pyin()
+            generate_sine_wave()
+            generate_test_signal()
+            generate_silent_signal()
+        }
+    }
+    namespace `gui/clips.rs` {
+        class `gui/clips_functions` {
+            default()
+            new()
+            show()
+            default()
+            new()
+            show()
+        }
+    }
+    namespace `audio/autotune/psola.rs` {
+        class `audio/autotune/psola_functions` {
+            find_pitch_marks()
+            extract_frames()
+            compute_scaling_factors()
+            generate_new_pitch_marks()
+            synthesize()
+            psola()
+        }
+    }
+    Args *-- Key : Key scale
+    AudioFile *-- PYinResult : PYinResult pyin_result
+    AutotuneApp *-- ClipPanel : ClipPanel clip_panel
+    AutotuneApp *-- CustomTitleBar : CustomTitleBar title_bar
+    AutotuneApp *-- Track : Track tracks
+    ClipManager *-- AudioClip : AudioClip clip_receiver
+    ClipManager *-- AudioClip : AudioClip clip_sender
+    ClipManager *-- AudioClip : AudioClip clips
+    ClipPanel *-- ClipUI : ClipUI clips
+    Track *-- AudioClip : AudioClip clips

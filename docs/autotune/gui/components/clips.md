@@ -21,7 +21,6 @@
 
 - `fn new() -> Self`
 - `fn add_clip(self: & mut Self, clip: AudioFileData)`
-- `fn get_clips(self: &Self) -> &Vec<AudioFileData>`
 - `fn show(self: &Self, ctx: &egui::Context)`
 
 

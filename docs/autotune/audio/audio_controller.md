@@ -32,7 +32,6 @@
 **Variants:**
 - `SendTrack(crate::audio::Audio, u32)`
 - `RemoveTrack(u32)`
-- `ClearBuffer`
 - `Play`
 - `Stop`
 - `SetReadPosition(usize)`
@@ -68,9 +67,6 @@ and mixes multiple audio tracks into a single output buffer.
 **Methods:**
 
 - `fn new(receiver: tokio::sync::mpsc::Receiver<AudioCommand>, track_manager_sender: tokio::sync::mpsc::Sender<track::TrackManagerCommand>) -> anyhow::Result<Self>`
-- `fn get_volume(self: &Self) -> f32` - Get the current volume level
-- `fn is_playing(self: &Self) -> bool` - Check if audio is currently playing
-- `fn get_position(self: &Self) -> usize` - Get the current read position in the audio buffer
 - `fn fill_output_buffer(audio_for_callback: &Arc<Mutex<Audio>>, shared_position: &Arc<Mutex<usize>>, shared_volume: &Arc<Mutex<f32>>, playing: &Arc<Mutex<bool>>, output: & mut [f32], channels: usize)` - Fills the output buffer with audio data from the shared audio buffer
 - `fn mix_tracks(self: & mut Self)` - Mixes all tracks into the audio buffer, applying autotuning if desired F0 is provided.
 - `fn run(self: & mut Self)` - Main loop processing incoming audio commands

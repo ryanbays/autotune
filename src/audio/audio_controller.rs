@@ -21,7 +21,6 @@ use tracing::{debug, error, info};
 pub enum AudioCommand {
     SendTrack(Audio, u32),
     RemoveTrack(u32),
-    ClearBuffer,
     Play,
     Stop,
     SetReadPosition(usize),
@@ -109,21 +108,6 @@ impl AudioController {
             playing,
             _stream: stream,
         })
-    }
-
-    /// Get the current volume level
-    pub fn get_volume(&self) -> f32 {
-        *self.volume.lock().unwrap()
-    }
-
-    /// Check if audio is currently playing
-    pub fn is_playing(&self) -> bool {
-        *self.playing.lock().unwrap()
-    }
-
-    /// Get the current read position in the audio buffer
-    pub fn get_position(&self) -> usize {
-        *self.position.lock().unwrap()
     }
 
     /// Fills the output buffer with audio data from the shared audio buffer
@@ -310,9 +294,6 @@ impl AudioController {
                 }
                 AudioCommand::SetVolume(volume) => {
                     *self.volume.lock().unwrap() = volume;
-                }
-                AudioCommand::ClearBuffer => {
-                    debug!("AudioController: ClearBuffer command received");
                 }
                 AudioCommand::Shutdown => {
                     debug!("AudioController: Shutdown command received");

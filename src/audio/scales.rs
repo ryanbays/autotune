@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use tracing::debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Key {
@@ -140,13 +139,6 @@ impl Key {
         midi_scale.sort_unstable();
         midi_scale.dedup();
         midi_scale
-    }
-    pub fn get_scale_frequencies(&self, octave1: i8, octave2: i8) -> Vec<f32> {
-        let midi_scale = self.get_midi_scale(octave1, octave2);
-        midi_scale
-            .iter()
-            .map(|&m| 440.0 * 2f32.powf((m as f32 - 69.0) / 12.0))
-            .collect()
     }
     pub fn get_scale_note_names(&self, octave1: i8, octave2: i8) -> Vec<String> {
         let midi_scale = self.get_midi_scale(octave1, octave2);

@@ -1,0 +1,18 @@
+---
+config:
+  title: Project Tests
+  layout: elk
+  theme: dark
+  elk:
+    mergeEdges: true
+    nodePlacementStrategy: BRANDES_KOEPF
+---
+classDiagram
+    direction TB
+    namespace `audio/autotune/pyin.rs` {
+        class `audio/autotune/pyin_functions` {
+            test_pyin()
+            test_snap_to_scale()
+            test_snap_to_scale_empty()
+        }
+    }

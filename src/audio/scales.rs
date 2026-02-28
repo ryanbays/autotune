@@ -1,11 +1,13 @@
 use std::str::FromStr;
 
+/// Represents a musical key, defined by a root note and a scale type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Key {
     root: Note,
     scale: Scale,
 }
 
+/// Represents a musical note (C, Cs, D, etc.). Only sharps are supported for simplicity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Note {
     C,
@@ -22,6 +24,7 @@ pub enum Note {
     B,
 }
 
+/// Represents different types of musical scales
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scale {
     Major,
@@ -102,6 +105,7 @@ impl Key {
     pub fn new(root: Note, scale: Scale) -> Self {
         Self { root, scale }
     }
+    /// Returns a vector of MIDI note numbers that belong to the key's scale across the specified octave range
     pub fn get_midi_scale(&self, octave1: i8, octave2: i8) -> Vec<u8> {
         let scale_intervals = match self.scale {
             Scale::Major => vec![0, 2, 4, 5, 7, 9, 11],
@@ -140,6 +144,7 @@ impl Key {
         midi_scale.dedup();
         midi_scale
     }
+    /// Returns a vector of note names (e.g., "C4", "D#4") that belong to the key's scale across the specified octave range
     pub fn get_scale_note_names(&self, octave1: i8, octave2: i8) -> Vec<String> {
         let midi_scale = self.get_midi_scale(octave1, octave2);
         midi_scale
@@ -168,13 +173,15 @@ impl Key {
     }
 }
 
+/// Converts a frequency in Hz to a MIDI note number (where A4 = 69 and 440 Hz)
 pub fn frequency_to_midi_note(freq: f32) -> f32 {
     69.0 + 12.0 * (freq / 440.0).log2()
 }
+/// Converts a MIDI note number to a frequency in Hz (where A4 = 69 and 440 Hz)
 pub fn midi_note_to_frequency(midi_note: f32) -> f32 {
     440.0 * 2f32.powf((midi_note - 69.0) / 12.0)
 }
-#[allow(unused)]
+
 pub fn note_name_to_midi_note(name: &str) -> anyhow::Result<f32, String> {
     let mut chars = name.chars();
     let note = chars.next().ok_or("Empty note name")?;

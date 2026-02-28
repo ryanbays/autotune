@@ -1,6 +1,7 @@
 use crate::audio::autotune::{FRAME_LENGTH, HOP_LENGTH, pyin::PYINData};
 use tracing::debug;
 
+/// Finds pitch marks based on PYIN analysis. Only considers voiced frames with valid f0 values.
 fn find_pitch_marks(pyin: &PYINData, sample_rate: u32) -> Vec<usize> {
     let mut pitch_marks = Vec::new();
     let mut pos = 0.0_f32;
@@ -25,6 +26,8 @@ fn find_pitch_marks(pyin: &PYINData, sample_rate: u32) -> Vec<usize> {
     pitch_marks
 }
 
+/// Computes new pitch mark positions based on the target f0.
+/// Adjusts spacing between marks according to the ratio of target f0 to original f0 at each frame.
 fn compute_target_pitch_spacing(
     pyin_result: &PYINData,
     target_f0: &Vec<f32>,
@@ -58,6 +61,8 @@ fn compute_target_pitch_spacing(
     shifted_marks
 }
 
+/// Performs overlap-add synthesis to reconstruct the output audio based on the original audio
+/// and the new pitch mark positions.
 fn overlap_add(
     audio: &Vec<f32>,
     pitch_marks: &Vec<usize>,
@@ -107,6 +112,7 @@ fn overlap_add(
     output
 }
 
+/// Main PSOLA function that executes the pitch shifting process.
 pub fn psola(
     audio: &Vec<f32>,
     sample_rate: u32,

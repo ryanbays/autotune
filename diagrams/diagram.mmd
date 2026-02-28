@@ -155,6 +155,12 @@ classDiagram
             menu
             audio_controller_sender
         }
+        class `TrackManagerCommand` {
+            <<enum>>
+            <<gui/components/track>>
+            AddAudioClip
+            SetReadPosition
+        }
         class `TrackManager` {
             <<struct>>
             <<gui/components/track>>
@@ -163,12 +169,6 @@ classDiagram
             receiver
             read_position
             audio_controller_sender
-        }
-        class `TrackManagerCommand` {
-            <<enum>>
-            <<gui/components/track>>
-            AddAudioClip
-            SetReadPosition
         }
     }
     namespace `gui/components/track_menu.rs` {
@@ -204,6 +204,24 @@ classDiagram
             show() Displays the list of audio clips in a side panel with drag-and-drop support
         }
     }
+    namespace `audio/audio_controller.rs` {
+        class `audio/audio_controller_functions` {
+            new()
+            fill_output_buffer() Fills the output buffer with audio data from the shared audio buffer
+            mix_tracks() Mixes all tracks into the audio buffer, applying autotuning if desired F0 is provided.
+            run() Main loop processing incoming audio commands
+        }
+    }
+    namespace `audio/autotune/psola.rs` {
+        class `audio/autotune/psola_functions` {
+            find_pitch_marks() Finds pitch marks based on PYIN analysis. Only considers voiced frames with valid f0 values.
+            compute_target_pitch_spacing() Computes new pitch mark positions based on the target f0.
+            overlap_add() Performs overlap-add synthesis to reconstruct the output audio based on the original audio
+            psola() Main PSOLA function that executes the pitch shifting process.
+            new()
+            as_pyin_data()
+        }
+    }
     namespace `gui/components/track.rs` {
         class `gui/components/track_functions` {
             calculate_pixels_per_second() Helper function that calculates the number of pixels a second of audio takes up based on the sample rate
@@ -218,13 +236,6 @@ classDiagram
             show() Displays the track UI, including the track name, solo/mute buttons, delete button, and the waveform display area which also serves as a drop zone for audio clips.
         }
     }
-    namespace `gui/app.rs` {
-        class `gui/app_functions` {
-            new()
-            update()
-            on_exit()
-        }
-    }
     namespace `audio/scales.rs` {
         class `audio/scales_functions` {
             from_str()
@@ -232,99 +243,11 @@ classDiagram
             from_str()
             from_str()
             new()
-            get_midi_scale()
-            get_scale_note_names()
-            frequency_to_midi_note()
-            midi_note_to_frequency()
+            get_midi_scale() Returns a vector of MIDI note numbers that belong to the key's scale across the specified octave range
+            get_scale_note_names() Returns a vector of note names (e.g., "C4", "D#4") that belong to the key's scale across the specified octave range
+            frequency_to_midi_note() Converts a frequency in Hz to a MIDI note number (where A4 = 69 and 440 Hz)
+            midi_note_to_frequency() Converts a MIDI note number to a frequency in Hz (where A4 = 69 and 440 Hz)
             note_name_to_midi_note()
-        }
-    }
-    namespace `audio/autotune/psola.rs` {
-        class `audio/autotune/psola_functions` {
-            find_pitch_marks()
-            compute_target_pitch_spacing()
-            overlap_add()
-            psola()
-            new()
-            as_pyin_data()
-        }
-    }
-    namespace `gui/components/toolbar.rs` {
-        class `gui/components/toolbar_functions` {
-            new()
-            get_zoom_level()
-            show() Displays the toolbar at the top of the application window with playback controls, zoom slider, and volume slider.
-        }
-    }
-    namespace `audio/autotune/mod.rs` {
-        class `audio/autotune/mod_functions` {
-            compute_shifted_audio()
-        }
-    }
-    namespace `audio/autotune/pyin.rs` {
-        class `audio/autotune/pyin_functions` {
-            new()
-            f0()
-            voiced_flag()
-            voiced_prob()
-            frame_rms() Simple RMS energy of a frame, used for voicing / silence detection.
-            difference_function()
-            cumulative_mean_normalized_difference()
-            parabolic_interp()
-            find_pitch_candidates()
-            probabilistic_f0_selection()
-            pyin()
-            sine_wave()
-        }
-    }
-    namespace `gui/components/titlebar.rs` {
-        class `gui/components/titlebar_functions` {
-            new()
-            show() Displays the title bar at the top of the application window with buttons
-            handle_window_control()
-            handle_window_control()
-        }
-    }
-    namespace `main.rs` {
-        class `main_functions` {
-            init_logger() Initialize the logger with the specified log level
-            main()
-        }
-    }
-    namespace `audio/audio_controller.rs` {
-        class `audio/audio_controller_functions` {
-            new()
-            fill_output_buffer() Fills the output buffer with audio data from the shared audio buffer
-            mix_tracks() Mixes all tracks into the audio buffer, applying autotuning if desired F0 is provided.
-            run() Main loop processing incoming audio commands
-        }
-    }
-    namespace `audio/file.rs` {
-        class `audio/file_functions` {
-            load() Uses rodio::Decoder, which yields interleaved samples for multichannel audio.
-            new()
-            save() Save audio data to a WAV file (16-bit PCM, interleaved channels).
-            to_audio()
-            from_audio()
-            n_channels()
-            sample_rate()
-            n_samples()
-            len_samples_raw() Total number of interleaved sample values (frames * channels).
-            is_empty()
-            samples()
-        }
-    }
-    namespace `gui/components/track_menu.rs` {
-        class `gui/components/track_menu_functions` {
-            frame_to_screen()
-            midi_to_y() Map a MIDI value to a y coordinate using fixed spacing per note, taking
-            note_range_to_height() Height of the full note range based on fixed vertical spacing.
-            freq_to_y()
-            y_to_freq()
-            new()
-            open()
-            is_open()
-            show_menu() Shows a floating window where the autotune can be configured for a track
         }
     }
     namespace `audio/mod.rs` {
@@ -343,6 +266,83 @@ classDiagram
             add_audio_at() Adds the audio from `other` into `self` starting at `position`. (Adds to existing
             compute_pyin_blocking() Internal helper: runs pyin on left/right on the current thread.
             interleave_stereo() Helper function to interleave two stereo channels into a single output buffer.
+        }
+    }
+    namespace `audio/autotune/mod.rs` {
+        class `audio/autotune/mod_functions` {
+            compute_shifted_audio()
+        }
+    }
+    namespace `gui/components/track_menu.rs` {
+        class `gui/components/track_menu_functions` {
+            frame_to_screen()
+            midi_to_y() Map a MIDI value to a y coordinate using fixed spacing per note, taking
+            note_range_to_height() Height of the full note range based on fixed vertical spacing.
+            freq_to_y()
+            y_to_freq()
+            new()
+            open()
+            is_open()
+            show_menu() Shows a floating window where the autotune can be configured for a track
+        }
+    }
+    namespace `gui/components/toolbar.rs` {
+        class `gui/components/toolbar_functions` {
+            new()
+            get_zoom_level()
+            show() Displays the toolbar at the top of the application window with playback controls, zoom slider, and volume slider.
+        }
+    }
+    namespace `main.rs` {
+        class `main_functions` {
+            init_logger() Initialize the logger with the specified log level
+            main()
+        }
+    }
+    namespace `audio/file.rs` {
+        class `audio/file_functions` {
+            load() Uses rodio::Decoder, which yields interleaved samples for multichannel audio.
+            new()
+            save() Save audio data to a WAV file (16-bit PCM, interleaved channels).
+            to_audio()
+            from_audio()
+            n_channels()
+            sample_rate()
+            n_samples()
+            len_samples_raw() Total number of interleaved sample values (frames * channels).
+            is_empty()
+            samples()
+        }
+    }
+    namespace `audio/autotune/pyin.rs` {
+        class `audio/autotune/pyin_functions` {
+            new()
+            f0()
+            voiced_flag()
+            voiced_prob()
+            frame_rms() Simple RMS energy of a frame, used for voicing / silence detection.
+            difference_function()
+            cumulative_mean_normalized_difference()
+            parabolic_interp()
+            find_pitch_candidates()
+            probabilistic_f0_selection()
+            pyin()
+            sine_wave()
+        }
+    }
+    namespace `gui/app.rs` {
+        class `gui/app_functions` {
+            new()
+            update()
+            on_exit()
+        }
+    }
+    namespace `gui/components/titlebar.rs` {
+        class `gui/components/titlebar_functions` {
+            new()
+            show() Displays the title bar at the top of the application window with buttons
+            handle_window_control()
+            handle_window_control()
         }
     }
     App *-- AudioCommand : AudioCommand audio_controller_sender
@@ -366,5 +366,5 @@ note for `AudioController` "Controller for managing audio playback using CPAL"
 note for `ClipManager` "Manages the list of audio clips and their display in the GUI"
 note for `TitleBar` "Custom title bar component that includes the application title and a file menu for loading audio clips."
 note for `Track` "Struct that represents an individual track in the TrackManager"
-note for `TrackManager` "Struct that handles managing tracks and displaying in `egui`"
 note for `TrackManagerCommand` "Enum for cross-thread communication between the TrackManager and the AudioController"
+note for `TrackManager` "Struct that handles managing tracks and displaying in `egui`"

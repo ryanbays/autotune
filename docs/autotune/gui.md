@@ -11,7 +11,7 @@
 
 **Functions**
 
-- [`run`](#run)
+- [`run`](#run) - Run the GUI app with UNIX-specific options
 
 ---
 
@@ -26,6 +26,8 @@
 ## autotune::gui::run
 
 *Function*
+
+Run the GUI app with UNIX-specific options
 
 ```rust
 fn run() -> Result<(), eframe::Error>

@@ -6,7 +6,7 @@
 
 **Structs**
 
-- [`Track`](#track)
+- [`Track`](#track) - Struct that represents an individual track in the TrackManager
 - [`TrackManager`](#trackmanager) - Struct that handles managing tracks and displaying in `egui`
 
 **Enums**
@@ -19,7 +19,7 @@
 
 **Constants**
 
-- [`LEFT_SIDE_PADDING`](#left_side_padding) - Constant that defines the amount of pixels to the left of the timeline ruler
+- [`LEFT_SIDE_PADDING`](#left_side_padding) - Constant that defines the amount of pixels to the left of the timeline ruler and track
 - [`SAMPLES_PER_PIXEL`](#samples_per_pixel)
 
 ---
@@ -28,8 +28,7 @@
 
 *Constant*: `f32`
 
-Constant that defines the amount of pixels to the left of the timeline ruler
-and track
+Constant that defines the amount of pixels to the left of the timeline ruler and track
 
 
 
@@ -43,6 +42,8 @@ and track
 
 *Struct*
 
+Struct that represents an individual track in the TrackManager
+
 **Fields:**
 - `id: u32`
 - `audio: crate::audio::Audio`
@@ -54,8 +55,8 @@ and track
 **Methods:**
 
 - `fn new(id: u32, audio_controller_sender: mpsc::Sender<AudioCommand>) -> Self`
-- `fn send_update(self: &Self)`
-- `fn show(self: & mut Self, index: usize, zoom: f32, scroll: f32, ui: & mut egui::Ui, ctx: &egui::Context) -> bool`
+- `fn send_update(self: &Self)` - Internal function to send an UpdateTrackAudio command to the AudioController with the current audio data of the track
+- `fn show(self: & mut Self, index: usize, zoom: f32, scroll: f32, ui: & mut egui::Ui, ctx: &egui::Context) -> bool` - Displays the track UI, including the track name, solo/mute buttons, delete button, and the waveform display area which also serves as a drop zone for audio clips.
 
 **Trait Implementations:**
 
@@ -84,7 +85,7 @@ Struct that handles managing tracks and displaying in `egui`
 - `fn audio_controller_communication(self: & mut Self, clip_manager: & mut ClipManager)` - Internal function to send commands to the AudioController from the TrackManager
 - `fn show_timeline_ruler(self: &Self, zoom_level: f32, ui: & mut egui::Ui)` - Internal function to draw the timeline ruler above the tracks
 - `fn show_read_pos_line(self: &Self, zoom_level: f32, ui: & mut egui::Ui)` - Internal function to draw a line indicating the current read position
-- `fn show(self: & mut Self, clip_manager: & mut components::clips::ClipManager, toolbar: &components::toolbar::Toolbar, ctx: &egui::Context)` - Displays the UI:
+- `fn show(self: & mut Self, clip_manager: & mut components::clips::ClipManager, toolbar: &components::toolbar::Toolbar, ctx: &egui::Context)` - Displays the UI
 
 
 

@@ -6,17 +6,17 @@
 
 **Structs**
 
-- [`Key`](#key)
+- [`Key`](#key) - Represents a musical key, defined by a root note and a scale type
 
 **Enums**
 
-- [`Note`](#note)
-- [`Scale`](#scale)
+- [`Note`](#note) - Represents a musical note (C, Cs, D, etc.). Only sharps are supported for simplicity.
+- [`Scale`](#scale) - Represents different types of musical scales
 
 **Functions**
 
-- [`frequency_to_midi_note`](#frequency_to_midi_note)
-- [`midi_note_to_frequency`](#midi_note_to_frequency)
+- [`frequency_to_midi_note`](#frequency_to_midi_note) - Converts a frequency in Hz to a MIDI note number (where A4 = 69 and 440 Hz)
+- [`midi_note_to_frequency`](#midi_note_to_frequency) - Converts a MIDI note number to a frequency in Hz (where A4 = 69 and 440 Hz)
 - [`note_name_to_midi_note`](#note_name_to_midi_note)
 
 ---
@@ -25,6 +25,8 @@
 
 *Struct*
 
+Represents a musical key, defined by a root note and a scale type
+
 **Fields:**
 - `root: Note`
 - `scale: Scale`
@@ -32,8 +34,8 @@
 **Methods:**
 
 - `fn new(root: Note, scale: Scale) -> Self`
-- `fn get_midi_scale(self: &Self, octave1: i8, octave2: i8) -> Vec<u8>`
-- `fn get_scale_note_names(self: &Self, octave1: i8, octave2: i8) -> Vec<String>`
+- `fn get_midi_scale(self: &Self, octave1: i8, octave2: i8) -> Vec<u8>` - Returns a vector of MIDI note numbers that belong to the key's scale across the specified octave range
+- `fn get_scale_note_names(self: &Self, octave1: i8, octave2: i8) -> Vec<String>` - Returns a vector of note names (e.g., "C4", "D#4") that belong to the key's scale across the specified octave range
 
 **Traits:** Copy, Eq
 
@@ -53,6 +55,8 @@
 ## autotune::audio::scales::Note
 
 *Enum*
+
+Represents a musical note (C, Cs, D, etc.). Only sharps are supported for simplicity.
 
 **Variants:**
 - `C`
@@ -89,6 +93,8 @@
 
 *Enum*
 
+Represents different types of musical scales
+
 **Variants:**
 - `Major`
 - `Minor`
@@ -115,6 +121,8 @@
 
 *Function*
 
+Converts a frequency in Hz to a MIDI note number (where A4 = 69 and 440 Hz)
+
 ```rust
 fn frequency_to_midi_note(freq: f32) -> f32
 ```
@@ -124,6 +132,8 @@ fn frequency_to_midi_note(freq: f32) -> f32
 ## autotune::audio::scales::midi_note_to_frequency
 
 *Function*
+
+Converts a MIDI note number to a frequency in Hz (where A4 = 69 and 440 Hz)
 
 ```rust
 fn midi_note_to_frequency(midi_note: f32) -> f32

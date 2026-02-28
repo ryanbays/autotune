@@ -16,14 +16,14 @@
 
 **Fields:**
 - `zoom_level: f32`
-- `volume_level: u32`
+- `volume_level: u32` - Volume level from 0 to 200
 - `audio_controller_sender: mpsc::Sender<crate::audio::audio_controller::AudioCommand>`
 
 **Methods:**
 
 - `fn new(audio_controller_sender: mpsc::Sender<AudioCommand>) -> Self`
 - `fn get_zoom_level(self: &Self) -> f32`
-- `fn show(self: & mut Self, ctx: &egui::Context)`
+- `fn show(self: & mut Self, ctx: &egui::Context)` - Displays the toolbar at the top of the application window with playback controls, zoom slider, and volume slider.
 
 
 

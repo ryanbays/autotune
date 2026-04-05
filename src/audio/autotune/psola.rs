@@ -2,6 +2,7 @@ use crate::audio::autotune::{FRAME_LENGTH, HOP_LENGTH, pyin::PYINData};
 use tracing::debug;
 
 /// Finds pitch marks based on PYIN analysis. Only considers voiced frames with valid f0 values.
+/// Marks are roughly pitch-synchronous but not sample-accurate; good enough for a demo.
 fn find_pitch_marks(pyin: &PYINData, sample_rate: u32) -> Vec<usize> {
     let mut pitch_marks = Vec::new();
     let mut pos = 0.0_f32;
@@ -10,6 +11,7 @@ fn find_pitch_marks(pyin: &PYINData, sample_rate: u32) -> Vec<usize> {
         if !pyin.voiced_flag()[i] || pyin.f0()[i] <= 0.0 {
             continue;
         }
+
         let period = sample_rate as f32 / pyin.f0()[i];
         let frame_start = i * HOP_LENGTH;
 
@@ -27,7 +29,7 @@ fn find_pitch_marks(pyin: &PYINData, sample_rate: u32) -> Vec<usize> {
 }
 
 /// Computes new pitch mark positions based on the target f0.
-/// Adjusts spacing between marks according to the ratio of target f0 to original f0 at each frame.
+/// Uses the inverse ratio so that higher target f0 => shorter spacing (higher perceived pitch).
 fn compute_target_pitch_spacing(
     pyin_result: &PYINData,
     target_f0: &Vec<f32>,
@@ -47,13 +49,18 @@ fn compute_target_pitch_spacing(
             break;
         }
 
+        // If this frame is unvoiced or invalid, just keep original spacing
         if !pyin_result.voiced_flag()[frame_index] || pyin_result.f0()[frame_index] <= 0.0 {
             shifted_marks.push(shifted_marks[i - 1] + (pitch_marks[i] - pitch_marks[i - 1]));
             continue;
         }
 
         let old_spacing = pitch_marks[i] - pitch_marks[i - 1];
-        let ratio = target_f0[frame_index] / pyin_result.f0()[frame_index];
+
+        // Invert the ratio: higher target_f0 => smaller period (closer marks)
+        // Clamp ratio to avoid extreme artifacts in a demo context.
+        let ratio = (pyin_result.f0()[frame_index] / target_f0[frame_index]).clamp(0.25, 4.0);
+
         let new_spacing = (old_spacing as f32 * ratio).max(1.0); // avoid zero spacing
         shifted_marks.push(shifted_marks[i - 1] + new_spacing as usize);
     }
@@ -73,10 +80,10 @@ fn overlap_add(
         return Vec::new();
     }
 
-    let output_length = (*shifted_marks.last().unwrap() + frame_size).min(audio.len() * 2);
+    let output_length = (*shifted_marks.last().unwrap() + frame_size).min(audio.len());
     let mut output = vec![0.0; output_length];
+    let mut weight = vec![0.0; output_length];
     let half_frame = frame_size / 2;
-
     // Hann window
     let window: Vec<f32> = (0..frame_size)
         .map(|n| {
@@ -106,6 +113,14 @@ fn overlap_add(
         for j in 0..len {
             let w = window[win_start + j];
             output[start_new + j] += audio[start_orig + j] * w;
+            weight[start_new + j] += w;
+        }
+    }
+
+    // Normalize by accumulated window weights to reduce amplitude modulation
+    for n in 0..output.len() {
+        if weight[n] > 1e-6 {
+            output[n] /= weight[n];
         }
     }
 
@@ -119,13 +134,12 @@ pub fn psola(
     pyin_result: &PYINData,
     target_f0: &Vec<f32>,
     frame_size: Option<usize>,
-    hop_size: Option<usize>,
+    _hop_size: Option<usize>, // currently unused; marks use HOP_LENGTH from analysis
 ) -> Vec<f32> {
     let frame_size = frame_size.unwrap_or(FRAME_LENGTH);
-    let hop_size = hop_size.unwrap_or(HOP_LENGTH);
     debug!(
         frame_size,
-        hop_size,
+        hop_length = HOP_LENGTH,
         n_samples = audio.len(),
         "Starting PSOLA pitch shifting"
     );
@@ -212,13 +226,17 @@ mod tests {
         let pyin = DummyPYIN::new(f0.clone(), voiced_flag).as_pyin_data();
 
         let pitch_marks = vec![0, 100, 200, 300];
-        // Double the pitch
+        // Double the pitch in the target
         let target_f0 = vec![200.0; 4];
 
         let shifted = compute_target_pitch_spacing(&pyin, &target_f0, &pitch_marks);
         assert_eq!(shifted.len(), pitch_marks.len());
-        // Spacing should be roughly halved between marks
-        assert!(shifted[1] - shifted[0] < pitch_marks[1] - pitch_marks[0]);
+
+        let original_spacing = pitch_marks[1] - pitch_marks[0];
+        let new_spacing = shifted[1] - shifted[0];
+
+        // With inverse ratio, higher target f0 => smaller spacing
+        assert!(new_spacing < original_spacing);
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use tracing::debug;
 
 /// Represents a musical key, defined by a root note and a scale type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,6 +25,25 @@ pub enum Note {
     B,
 }
 
+impl Note {
+    pub fn all_notes() -> Vec<Note> {
+        vec![
+            Note::C,
+            Note::Cs,
+            Note::D,
+            Note::Ds,
+            Note::E,
+            Note::F,
+            Note::Fs,
+            Note::G,
+            Note::Gs,
+            Note::A,
+            Note::As,
+            Note::B,
+        ]
+    }
+}
+
 /// Represents different types of musical scales
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scale {
@@ -32,6 +52,18 @@ pub enum Scale {
     Blues,
     Pentatonic,
     Chromatic,
+}
+
+impl Scale {
+    pub fn all_scales() -> Vec<Scale> {
+        vec![
+            Scale::Major,
+            Scale::Minor,
+            Scale::Blues,
+            Scale::Pentatonic,
+            Scale::Chromatic,
+        ]
+    }
 }
 
 impl FromStr for Note {
@@ -170,6 +202,19 @@ impl Key {
                 format!("{}{}", note_name, octave)
             })
             .collect()
+    }
+    pub fn snap_frequency_to_scale(&self, freq: f32) -> f32 {
+        let midi_note = frequency_to_midi_note(freq);
+        let midi_scale = self.get_midi_scale(-1, 7); // Get all MIDI notes in the scale across all octaves
+        let closest_note = midi_scale
+            .iter()
+            .min_by(|&&a, &&b| {
+                let dist_a = (midi_note - a as f32).abs();
+                let dist_b = (midi_note - b as f32).abs();
+                dist_a.partial_cmp(&dist_b).unwrap()
+            })
+            .unwrap();
+        midi_note_to_frequency(*closest_note as f32)
     }
 }
 

@@ -9,7 +9,7 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
-use rust_prototype_2::audio::{self, file};
+use autotune::audio::{self, file};
 
 fn asset_path(name: &str) -> PathBuf {
     let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

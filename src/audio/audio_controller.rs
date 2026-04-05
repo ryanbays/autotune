@@ -1,7 +1,8 @@
-use crate::audio::{Audio, interleave_stereo};
+use crate::audio::{self, Audio, interleave_stereo};
 use crate::gui::components::track;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, error, info};
 
@@ -26,6 +27,7 @@ pub enum AudioCommand {
     SetReadPosition(usize),
     BroadcastPosition,
     SetVolume(f32),
+    ExportMixdown(PathBuf),
     Shutdown,
 }
 
@@ -307,6 +309,29 @@ impl AudioController {
                     {
                         error!("AudioController: Failed to send playhead position: {}", e);
                     }
+                }
+                AudioCommand::ExportMixdown(path) => {
+                    debug!(
+                        "AudioController: ExportMixdown command received: {}",
+                        path.display()
+                    );
+                    let audio = self.audio_buffer.lock().unwrap().clone();
+                    let mut samples = vec![0.0f32; audio.left.len().min(audio.right.len()) * 2];
+                    interleave_stereo(&audio.left, &audio.right, &mut samples);
+                    tokio::task::spawn_blocking(move || {
+                        let file =                            audio::file::AudioFileData::new(samples, audio.sample_rate(), 2).unwrap_or_else(|e| {
+                                error!("AudioController: Failed to create audio file data for export: {}", e);
+                                audio::file::AudioFileData::new(vec![0.0f32; 2], audio.sample_rate(), 2).unwrap()
+                            });
+                        if let Err(e) = file.save(&path) {
+                            error!("AudioController: Failed to export mixdown: {}", e);
+                        } else {
+                            info!(
+                                "AudioController: Mixdown exported successfully to {}",
+                                path.display()
+                            );
+                        }
+                    });
                 }
             }
         }

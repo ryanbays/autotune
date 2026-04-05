@@ -37,8 +37,11 @@ impl App {
 
         let clip_manager = components::clips::ClipManager::new();
         let toolbar = components::toolbar::Toolbar::new(audio_controller_sender.clone());
-        let titlebar =
-            components::titlebar::TitleBar::new("Autotune", track_manager_sender.clone());
+        let titlebar = components::titlebar::TitleBar::new(
+            "Autotune",
+            track_manager_sender.clone(),
+            audio_controller_sender.clone(),
+        );
         Self {
             titlebar,
             toolbar,

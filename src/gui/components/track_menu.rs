@@ -1,7 +1,7 @@
 use crate::audio::{self, Audio};
 use crate::gui::components::track::calculate_pixels_per_second;
 use egui::Sense;
-use tracing::debug;
+use tracing::{debug, info};
 
 const LEFT_SIDE_PADDING: f32 = 40.0;
 const VERTICAL_NOTE_SPACING: f32 = 15.0;
@@ -94,6 +94,8 @@ pub struct TrackMenu {
     zoom_level: f32,
     cached_desired_f0: Option<Vec<f32>>,
     apply_autotune: bool,
+    selected_scale: Option<audio::scales::Scale>,
+    selected_root_note: Option<audio::scales::Note>,
     volume_level: u32, // Volume level from 0 to 200
 }
 
@@ -105,6 +107,8 @@ impl TrackMenu {
             vertical_scroll: 0.0,
             zoom_level: 1.0,
             cached_desired_f0: None,
+            selected_scale: None,
+            selected_root_note: None,
             apply_autotune: false,
             volume_level: 100,
         }
@@ -148,26 +152,173 @@ impl TrackMenu {
                         let apply_response =
                             ui.checkbox(&mut self.apply_autotune, "Apply Autotune to this track");
                         if apply_response.changed() {
+                            info!(
+                                track_id = id,
+                                apply_autotune = self.apply_autotune,
+                                "Apply autotune checkbox changed"
+                            );
                             if !self.apply_autotune {
-                                self.cached_desired_f0 = Some(
-                                    audio
-                                        .desired_f0
-                                        .as_ref()
-                                        .map(|v| v.clone())
-                                        .unwrap_or_else(|| vec![]),
-                                );
+                                // Cache current desired_f0 or fall back to a scale-aware version
+                                info!(track_id = id, "Disabling autotune, caching desired_f0");
+                                self.cached_desired_f0 =
+                                    Some(audio.desired_f0.as_ref().cloned().unwrap_or_else(|| {
+                                        info!(
+                                            track_id = id,
+                                            has_desired_f0 = audio.desired_f0.is_some(),
+                                            has_pyin = audio.get_pyin().is_some(),
+                                            selected_root = ?self.selected_root_note,
+                                            selected_scale = ?self.selected_scale,
+                                            "Building cached_desired_f0 from current state"
+                                        );
+                                        if let (Some(root), Some(scale), Some(pyin)) = (
+                                            self.selected_root_note,
+                                            self.selected_scale,
+                                            audio.get_pyin(),
+                                        ) {
+                                            let key = audio::scales::Key::new(root, scale);
+                                            let mut snapped: Vec<f32> =
+                                                Vec::with_capacity(pyin.f0().len());
+                                            for (idx, &freq) in pyin.f0().iter().enumerate() {
+                                                if freq <= 0.0 {
+                                                    snapped.push(0.0);
+                                                    continue;
+                                                }
+                                                let snapped_freq =
+                                                    key.snap_frequency_to_scale(freq);
+                                                if idx % 2048 == 0 {
+                                                    debug!(
+                                                        track_id = id,
+                                                        frame = idx,
+                                                        original_freq = freq,
+                                                        snapped_freq,
+                                                        "Caching desired_f0: snapped frame"
+                                                    );
+                                                }
+                                                snapped.push(snapped_freq);
+                                            }
+                                            info!(
+                                                track_id = id,
+                                                len = snapped.len(),
+                                                "Finished caching desired_f0 from pyin with scale"
+                                            );
+                                            snapped
+                                        } else {
+                                            let base = audio
+                                                .get_pyin()
+                                                .map_or_else(Vec::new, |pyin| pyin.f0().to_vec());
+                                            info!(
+                                                track_id = id,
+                                                len = base.len(),
+                                                "Caching desired_f0 from raw pyin (no scale/root)"
+                                            );
+                                            base
+                                        }
+                                    }));
+                                if let Some(ref cached) = self.cached_desired_f0 {
+                                    info!(
+                                        track_id = id,
+                                        cached_len = cached.len(),
+                                        "desired_f0 cached on disable"
+                                    );
+                                }
                                 audio.desired_f0 = None;
                             } else if let Some(cached) = self.cached_desired_f0.clone() {
+                                info!(
+                                    track_id = id,
+                                    cached_len = cached.len(),
+                                    "Re-enabling autotune, restoring cached desired_f0"
+                                );
                                 audio.desired_f0 = Some(cached);
                                 self.cached_desired_f0 = None;
                             } else {
-                                audio.desired_f0 = Some(
-                                    audio
-                                        .get_pyin()
-                                        .map_or(vec![], |pyin| vec![0.0; pyin.f0().len()]),
+                                // No cache: initialize from pyin, respecting scale/root if set
+                                info!(
+                                    track_id = id,
+                                    "Enabling autotune with no cache, building desired_f0 from pyin"
                                 );
+                                audio.desired_f0 = audio.get_pyin().map(|pyin| {
+                                    info!(
+                                        track_id = id,
+                                        pyin_len = pyin.f0().len(),
+                                        selected_root = ?self.selected_root_note,
+                                        selected_scale = ?self.selected_scale,
+                                        "Constructing desired_f0 from pyin"
+                                    );
+                                    if let (Some(root), Some(scale)) =
+                                        (self.selected_root_note, self.selected_scale)
+                                    {
+                                        let key = audio::scales::Key::new(root, scale);
+                                        let mut snapped: Vec<f32> =
+                                            Vec::with_capacity(pyin.f0().len());
+                                        for (idx, &freq) in pyin.f0().iter().enumerate() {
+                                            if freq <= 0.0 {
+                                                snapped.push(0.0);
+                                                continue;
+                                            }
+                                            let snapped_freq = key.snap_frequency_to_scale(freq);
+                                            if idx % 2048 == 0 {
+                                                debug!(
+                                                    track_id = id,
+                                                    frame = idx,
+                                                    original_freq = freq,
+                                                    snapped_freq,
+                                                    "desired_f0 from pyin+scale: snapped frame"
+                                                );
+                                            }
+                                            snapped.push(snapped_freq);
+                                        }
+                                        info!(
+                                            track_id = id,
+                                            len = snapped.len(),
+                                            "Finished constructing desired_f0 from pyin+scale"
+                                        );
+                                        snapped
+                                    } else {
+                                        let base = pyin.f0().to_vec();
+                                        info!(
+                                            track_id = id,
+                                            len = base.len(),
+                                            "Finished constructing desired_f0 from raw pyin"
+                                        );
+                                        base
+                                    }
+                                });
                             }
                         }
+
+                        ui.horizontal(|ui| {
+                            egui::ComboBox::from_label("Note")
+                                .selected_text(
+                                    self.selected_root_note
+                                        .map(|n| format!("{:?}", n))
+                                        .unwrap_or_else(|| "Select Root Note".to_string()),
+                                )
+                                .show_ui(ui, |ui| {
+                                    for note in audio::scales::Note::all_notes() {
+                                        ui.selectable_value(
+                                            &mut self.selected_root_note,
+                                            Some(note),
+                                            format!("{:?}", note),
+                                        );
+                                    }
+                                });
+
+                            egui::ComboBox::from_label("Scale")
+                                .selected_text(
+                                    self.selected_scale
+                                        .map(|n| format!("{:?}", n))
+                                        .unwrap_or_else(|| "Selected Scale".to_string()),
+                                )
+                                .show_ui(ui, |ui| {
+                                    for scale in audio::scales::Scale::all_scales() {
+                                        ui.selectable_value(
+                                            &mut self.selected_scale,
+                                            Some(scale),
+                                            format!("{:?}", scale),
+                                        );
+                                    }
+                                })
+                        });
                         ui.horizontal(|ui| {
                             ui.label("Zoom:");
                             ui.add(
@@ -338,7 +489,13 @@ impl TrackMenu {
                         if let Some(ref mut desired_f0) = audio.desired_f0 {
                             // Ensure same length as pyin
                             if desired_f0.len() < pyin.f0().len() {
+                                let old_len = desired_f0.len();
                                 desired_f0.resize(pyin.f0().len(), 0.0);
+                                info!(
+                                    old_len,
+                                    new_len = desired_f0.len(),
+                                    "Resized desired_f0 to match pyin length"
+                                );
                             }
                         }
 
@@ -417,6 +574,14 @@ impl TrackMenu {
                                             max_midi,
                                             self.vertical_scroll,
                                         ) {
+                                            if (i % 1024) == 0 {
+                                                debug!(
+                                                    frame = i,
+                                                    old_freq = desired_f0[i],
+                                                    new_freq,
+                                                    "desired_f0 point adjusted via drag"
+                                                );
+                                            }
                                             desired_f0[i] = new_freq;
                                         }
                                     }

@@ -1,3 +1,4 @@
+use crate::audio::audio_controller;
 use crate::audio::file;
 use crate::gui::components::track;
 use eframe::egui::{self, Sense};
@@ -9,15 +10,18 @@ use tracing::{debug, error, info};
 pub struct TitleBar {
     title: String,
     track_manager_sender: mpsc::Sender<track::TrackManagerCommand>,
+    audio_controller_sender: mpsc::Sender<audio_controller::AudioCommand>,
 }
 
 impl TitleBar {
     pub fn new(
         title: impl Into<String>,
         track_manager_sender: mpsc::Sender<track::TrackManagerCommand>,
+        audio_controller_sender: mpsc::Sender<audio_controller::AudioCommand>,
     ) -> Self {
         Self {
             track_manager_sender,
+            audio_controller_sender,
             title: title.into(),
         }
     }
@@ -55,6 +59,25 @@ impl TitleBar {
                                 }
                             } else {
                                 debug!("No file selected");
+                            }
+                        });
+                    }
+                    if ui.button("Export mixdown").clicked() {
+                        debug!("Export mixdown clicked");
+                        let tx = self.audio_controller_sender.clone();
+                        tokio::task::spawn_blocking(move || {
+                            let result = rfd::FileDialog::new()
+                                .add_filter("WAV Audio", &["wav"])
+                                .set_title("Export mixdown")
+                                .save_file();
+                            if let Some(path) = result {
+                                if let Err(e) =
+                                    tx.try_send(audio_controller::AudioCommand::ExportMixdown(path))
+                                {
+                                    error!("Failed to send export command to track manager: {}", e);
+                                }
+                            } else {
+                                debug!("No file selected for export");
                             }
                         });
                     }

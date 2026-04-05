@@ -13,4 +13,4 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rust_prototype_2::audio::audio_controller::AudioController;
+use autotune::audio::audio_controller::AudioController;

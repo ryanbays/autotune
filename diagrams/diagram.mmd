@@ -10,6 +10,18 @@ config:
 classDiagram
     direction TB
     namespace `audio/audio_controller.rs` {
+        class `AudioController` {
+            <<struct>>
+            <<audio/audio_controller>>
+            receiver
+            track_manager_sender
+            tracks
+            audio_buffer
+            volume
+            position
+            playing
+            _stream
+        }
         class `AudioCommand` {
             <<enum>>
             <<audio/audio_controller>>
@@ -22,18 +34,6 @@ classDiagram
             SetVolume
             ExportMixdown
             Shutdown
-        }
-        class `AudioController` {
-            <<struct>>
-            <<audio/audio_controller>>
-            receiver
-            track_manager_sender
-            tracks
-            audio_buffer
-            volume
-            position
-            playing
-            _stream
         }
     }
     namespace `audio/autotune/psola.rs` {
@@ -78,6 +78,21 @@ classDiagram
         }
     }
     namespace `audio/scales.rs` {
+        class `Scale` {
+            <<enum>>
+            <<audio/scales>>
+            Major
+            Minor
+            Blues
+            Pentatonic
+            Chromatic
+        }
+        class `Key` {
+            <<struct>>
+            <<audio/scales>>
+            root
+            scale
+        }
         class `Note` {
             <<enum>>
             <<audio/scales>>
@@ -93,21 +108,6 @@ classDiagram
             A
             As
             B
-        }
-        class `Scale` {
-            <<enum>>
-            <<audio/scales>>
-            Major
-            Minor
-            Blues
-            Pentatonic
-            Chromatic
-        }
-        class `Key` {
-            <<struct>>
-            <<audio/scales>>
-            root
-            scale
         }
     }
     namespace `gui/app.rs` {
@@ -195,6 +195,23 @@ classDiagram
             log_level
         }
     }
+    namespace `audio/scales.rs` {
+        class `audio/scales_functions` {
+            Vec<Note> all_notes()
+            Vec<Scale> all_scales()
+            Result<Self, Self::Err> from_str(s: &str)
+            String into(self)
+            Result<Self, Self::Err> from_str(s: &str)
+            Result<Self, Self::Err> from_str(s: &str)
+            Self new(root: Note, scale: Scale)
+            Vec<u8> get_midi_scale(&self, octave1: i8, octave2: i8) Returns a vector of MIDI note numbers that belong to the key's scale across the specified octave range
+            Vec<String> get_scale_note_names(&self, octave1: i8, octave2: i8) Returns a vector of note names (e.g., "C4", "D#4") that belong to the key's scale across the specified octave range
+            f32 snap_frequency_to_scale(&self, freq: f32)
+            f32 frequency_to_midi_note(freq: f32) Converts a frequency in Hz to a MIDI note number (where A4 = 69 and 440 Hz)
+            f32 midi_note_to_frequency(midi_note: f32) Converts a MIDI note number to a frequency in Hz (where A4 = 69 and 440 Hz)
+            anyhow::Result<f32, String> note_name_to_midi_note(name: &str)
+        }
+    }
     namespace `gui/components/track.rs` {
         class `gui/components/track_functions` {
             f32 calculate_pixels_per_second(sample_rate: u32, zoom_level: f32) Helper function that calculates the number of pixels a second of audio takes up based on the sample rate
@@ -209,56 +226,15 @@ classDiagram
             bool show(&mut self, index: usize, zoom: f32, scroll: f32, ui: &mut egui::Ui, ctx: &egui::Context) Displays the track UI, including the track name, solo/mute buttons, delete button, and the waveform display area which also serves as a drop zone for audio clips.
         }
     }
-    namespace `audio/mod.rs` {
-        class `audio/mod_functions` {
-            Self new(sample_rate: u32, left: Vec<f32>, right: Vec<f32>)
-            u32 sample_rate(&self)
-            usize length(&self)
-            &[f32] left(&self)
-            &[f32] right(&self)
-            Option<PYINData> get_pyin(&self) Get a cloned PYIN data (if available) in a thread-safe way.
-            Option<PYINData> get_pyin_blocking(&self)
-            Arc<RwLock<Option<PYINData>>> pyin_handle(&self) Expose shared handle if callers want to manage locking themselves.
-            perform_pyin(&mut self) Synchronous wrapper.
-            thread::JoinHandle<()> perform_pyin_background(&mut self) Starts PYIN analysis on a background OS thread and returns immediately.
-            anyhow::Result<()> insert_audio_at(&mut self, position: usize, other: &Audio) Inserts the audio from `other` into `self` starting at `position`. (Overwrites existing
-            anyhow::Result<()> add_audio_at(&mut self, position: usize, other: &Audio) Adds the audio from `other` into `self` starting at `position`. (Adds to existing
-            compute_pyin_blocking(sample_rate: u32, left: Vec<f32>, right: Vec<f32>, pyin_ref: Arc<RwLock<Option<PYINData>>>) Internal helper: runs pyin on left/right on the current thread.
-            interleave_stereo(left: &[f32], right: &[f32], out: &mut [f32]) Helper function to interleave two stereo channels into a single output buffer.
-        }
-    }
-    namespace `gui/components/track_menu.rs` {
-        class `gui/components/track_menu_functions` {
-            f32 frame_to_screen(frame_idx: usize, rect: egui::Rect, pixels_per_second: f32, scroll_px: f32)
-            f32 midi_to_y(midi: f32, rect: egui::Rect, min_midi: f32, max_midi: f32, vertical_scroll: f32) Map a MIDI value to a y coordinate using fixed spacing per note, taking
-            f32 note_range_to_height(min_midi: f32, max_midi: f32, _rect: egui::Rect) Height of the full note range based on fixed vertical spacing.
-            Option<f32> freq_to_y(freq: f32, rect: egui::Rect, min_midi: f32, max_midi: f32, vertical_scroll: f32)
-            Option<f32> y_to_freq(y: f32, rect: egui::Rect, min_midi: f32, max_midi: f32, vertical_scroll: f32)
-            Self new()
-            open(&mut self)
-            bool is_open(&self)
-            bool show_menu(&mut self, id: u32, audio: &mut Audio, _ui: &mut egui::Ui, ctx: &egui::Context) Shows a floating window where the autotune can be configured for a track
-        }
-    }
-    namespace `gui/components/titlebar.rs` {
-        class `gui/components/titlebar_functions` {
-            Self new(title: impl Into<String>, track_manager_sender: mpsc::Sender<track::TrackManagerCommand>, audio_controller_sender: mpsc::Sender<audio_controller::AudioCommand>)
-            show(&mut self, ctx: &egui::Context) Displays the title bar at the top of the application window with buttons
-            handle_window_control(&self, _ui: &mut egui::Ui, _ctx: &egui::Context)
-            handle_window_control(&self, ui: &mut egui::Ui, ctx: &egui::Context)
-        }
-    }
-    namespace `audio/audio_controller.rs` {
-        class `audio/audio_controller_functions` {
-            anyhow::Result<Self> new(receiver: tokio::sync::mpsc::Receiver<AudioCommand>, track_manager_sender: tokio::sync::mpsc::Sender<track::TrackManagerCommand>)
-            fill_output_buffer(audio_for_callback: &Arc<Mutex<Audio>>, shared_position: &Arc<Mutex<usize>>, shared_volume: &Arc<Mutex<f32>>, playing: &Arc<Mutex<bool>>, output: &mut [f32], channels: usize) Fills the output buffer with audio data from the shared audio buffer
-            mix_tracks(&mut self) Mixes all tracks into the audio buffer, applying autotuning if desired F0 is provided.
-            run(&mut self) Main loop processing incoming audio commands
-        }
-    }
     namespace `audio/autotune/mod.rs` {
         class `audio/autotune/mod_functions` {
             anyhow::Result<Audio> compute_shifted_audio(audio: &Audio)
+        }
+    }
+    namespace `main.rs` {
+        class `main_functions` {
+            init_logger(level: &str) Initialize the logger with the specified log level
+            anyhow::Result<()> main()
         }
     }
     namespace `audio/autotune/pyin.rs` {
@@ -277,34 +253,25 @@ classDiagram
             Vec<f32> sine_wave(freq: f32, sr: u32, len: usize)
         }
     }
-    namespace `main.rs` {
-        class `main_functions` {
-            init_logger(level: &str) Initialize the logger with the specified log level
-            anyhow::Result<()> main()
+    namespace `gui/components/titlebar.rs` {
+        class `gui/components/titlebar_functions` {
+            Self new(title: impl Into<String>, track_manager_sender: mpsc::Sender<track::TrackManagerCommand>, audio_controller_sender: mpsc::Sender<audio_controller::AudioCommand>)
+            show(&mut self, ctx: &egui::Context) Displays the title bar at the top of the application window with buttons
+            handle_window_control(&self, _ui: &mut egui::Ui, _ctx: &egui::Context)
+            handle_window_control(&self, ui: &mut egui::Ui, ctx: &egui::Context)
         }
     }
-    namespace `gui/components/clips.rs` {
-        class `gui/components/clips_functions` {
+    namespace `gui/components/track_menu.rs` {
+        class `gui/components/track_menu_functions` {
+            f32 frame_to_screen(frame_idx: usize, rect: egui::Rect, pixels_per_second: f32, scroll_px: f32)
+            f32 midi_to_y(midi: f32, rect: egui::Rect, min_midi: f32, max_midi: f32, vertical_scroll: f32) Map a MIDI value to a y coordinate using fixed spacing per note, taking
+            f32 note_range_to_height(min_midi: f32, max_midi: f32, _rect: egui::Rect) Height of the full note range based on fixed vertical spacing.
+            Option<f32> freq_to_y(freq: f32, rect: egui::Rect, min_midi: f32, max_midi: f32, vertical_scroll: f32)
+            Option<f32> y_to_freq(y: f32, rect: egui::Rect, min_midi: f32, max_midi: f32, vertical_scroll: f32)
             Self new()
-            add_clip(&mut self, clip: AudioFileData)
-            show(&self, ctx: &egui::Context) Displays the list of audio clips in a side panel with drag-and-drop support
-        }
-    }
-    namespace `audio/scales.rs` {
-        class `audio/scales_functions` {
-            Vec<Note> all_notes()
-            Vec<Scale> all_scales()
-            Result<Self, Self::Err> from_str(s: &str)
-            String into(self)
-            Result<Self, Self::Err> from_str(s: &str)
-            Result<Self, Self::Err> from_str(s: &str)
-            Self new(root: Note, scale: Scale)
-            Vec<u8> get_midi_scale(&self, octave1: i8, octave2: i8) Returns a vector of MIDI note numbers that belong to the key's scale across the specified octave range
-            Vec<String> get_scale_note_names(&self, octave1: i8, octave2: i8) Returns a vector of note names (e.g., "C4", "D#4") that belong to the key's scale across the specified octave range
-            f32 snap_frequency_to_scale(&self, freq: f32)
-            f32 frequency_to_midi_note(freq: f32) Converts a frequency in Hz to a MIDI note number (where A4 = 69 and 440 Hz)
-            f32 midi_note_to_frequency(midi_note: f32) Converts a MIDI note number to a frequency in Hz (where A4 = 69 and 440 Hz)
-            anyhow::Result<f32, String> note_name_to_midi_note(name: &str)
+            open(&mut self)
+            bool is_open(&self)
+            bool show_menu(&mut self, id: u32, audio: &mut Audio, _ui: &mut egui::Ui, ctx: &egui::Context) Shows a floating window where the autotune can be configured for a track
         }
     }
     namespace `gui/components/toolbar.rs` {
@@ -314,10 +281,61 @@ classDiagram
             show(&mut self, ctx: &egui::Context) Displays the toolbar at the top of the application window with playback controls, zoom slider, and volume slider.
         }
     }
+    namespace `audio/mod.rs` {
+        class `audio/mod_functions` {
+            Self new(sample_rate: u32, left: Vec<f32>, right: Vec<f32>)
+            u32 sample_rate(&self)
+            usize length(&self)
+            &[f32] left(&self)
+            &[f32] right(&self)
+            Audio get_muted(&self)
+            Option<PYINData> get_pyin(&self) Get a cloned PYIN data (if available) in a thread-safe way.
+            Option<PYINData> get_pyin_blocking(&self)
+            Arc<RwLock<Option<PYINData>>> pyin_handle(&self) Expose shared handle if callers want to manage locking themselves.
+            perform_pyin(&mut self) Synchronous wrapper.
+            thread::JoinHandle<()> perform_pyin_background(&mut self) Starts PYIN analysis on a background OS thread and returns immediately.
+            anyhow::Result<()> insert_audio_at(&mut self, position: usize, other: &Audio) Inserts the audio from `other` into `self` starting at `position`. (Overwrites existing
+            anyhow::Result<()> add_audio_at(&mut self, position: usize, other: &Audio) Adds the audio from `other` into `self` starting at `position`. (Adds to existing
+            compute_pyin_blocking(sample_rate: u32, left: Vec<f32>, right: Vec<f32>, pyin_ref: Arc<RwLock<Option<PYINData>>>) Internal helper: runs pyin on left/right on the current thread.
+            interleave_stereo(left: &[f32], right: &[f32], out: &mut [f32]) Helper function to interleave two stereo channels into a single output buffer.
+        }
+    }
     namespace `gui/mod.rs` {
         class `gui/mod_functions` {
             Result<(), eframe::Error> run()
             Result<(), eframe::Error> run()
+        }
+    }
+    namespace `gui/app.rs` {
+        class `gui/app_functions` {
+            Self new()
+            update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame)
+            on_exit(&mut self, _gl: Option<&eframe::glow::Context>)
+        }
+    }
+    namespace `audio/autotune/psola.rs` {
+        class `audio/autotune/psola_functions` {
+            Vec<usize> find_pitch_marks(pyin: &PYINData, sample_rate: u32) Finds pitch marks based on PYIN analysis. Only considers voiced frames with valid f0 values.
+            Vec<usize> compute_target_pitch_spacing(pyin_result: &PYINData, target_f0: &Vec<f32>, pitch_marks: &Vec<usize>) Computes new pitch mark positions based on the target f0.
+            Vec<f32> overlap_add(audio: &Vec<f32>, pitch_marks: &Vec<usize>, shifted_marks: &Vec<usize>, frame_size: usize) Performs overlap-add synthesis to reconstruct the output audio based on the original audio
+            Vec<f32> psola(audio: &Vec<f32>, sample_rate: u32, pyin_result: &PYINData, target_f0: &Vec<f32>, frame_size: Option<usize>, _hop_size: Option<usize>) Main PSOLA function that executes the pitch shifting process.
+            Self new(f0: Vec<f32>, voiced_flag: Vec<bool>)
+            PYINData as_pyin_data(&self)
+        }
+    }
+    namespace `audio/audio_controller.rs` {
+        class `audio/audio_controller_functions` {
+            anyhow::Result<Self> new(receiver: tokio::sync::mpsc::Receiver<AudioCommand>, track_manager_sender: tokio::sync::mpsc::Sender<track::TrackManagerCommand>)
+            fill_output_buffer(audio_for_callback: &Arc<Mutex<Audio>>, shared_position: &Arc<Mutex<usize>>, shared_volume: &Arc<Mutex<f32>>, playing: &Arc<Mutex<bool>>, output: &mut [f32], channels: usize) Fills the output buffer with audio data from the shared audio buffer
+            mix_tracks(&mut self) Mixes all tracks into the audio buffer, applying autotuning if desired F0 is provided.
+            run(&mut self) Main loop processing incoming audio commands
+        }
+    }
+    namespace `gui/components/clips.rs` {
+        class `gui/components/clips_functions` {
+            Self new()
+            add_clip(&mut self, clip: AudioFileData)
+            show(&self, ctx: &egui::Context) Displays the list of audio clips in a side panel with drag-and-drop support
         }
     }
     namespace `audio/file.rs` {
@@ -333,23 +351,6 @@ classDiagram
             usize len_samples_raw(&self) Total number of interleaved sample values (frames * channels).
             bool is_empty(&self)
             &[f32] samples(&self)
-        }
-    }
-    namespace `audio/autotune/psola.rs` {
-        class `audio/autotune/psola_functions` {
-            Vec<usize> find_pitch_marks(pyin: &PYINData, sample_rate: u32) Finds pitch marks based on PYIN analysis. Only considers voiced frames with valid f0 values.
-            Vec<usize> compute_target_pitch_spacing(pyin_result: &PYINData, target_f0: &Vec<f32>, pitch_marks: &Vec<usize>) Computes new pitch mark positions based on the target f0.
-            Vec<f32> overlap_add(audio: &Vec<f32>, pitch_marks: &Vec<usize>, shifted_marks: &Vec<usize>, frame_size: usize) Performs overlap-add synthesis to reconstruct the output audio based on the original audio
-            Vec<f32> psola(audio: &Vec<f32>, sample_rate: u32, pyin_result: &PYINData, target_f0: &Vec<f32>, frame_size: Option<usize>, _hop_size: Option<usize>) Main PSOLA function that executes the pitch shifting process.
-            Self new(f0: Vec<f32>, voiced_flag: Vec<bool>)
-            PYINData as_pyin_data(&self)
-        }
-    }
-    namespace `gui/app.rs` {
-        class `gui/app_functions` {
-            Self new()
-            update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame)
-            on_exit(&mut self, _gl: Option<&eframe::glow::Context>)
         }
     }
     App *-- AudioCommand : AudioCommand audio_controller_sender

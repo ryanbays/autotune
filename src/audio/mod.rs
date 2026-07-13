@@ -54,6 +54,12 @@ impl Audio {
         &self.right
     }
 
+    pub fn get_muted(&self) -> Audio {
+        let muted_left = vec![0.0; self.left.len()];
+        let muted_right = vec![0.0; self.right.len()];
+        Audio::new(self.sample_rate, muted_left, muted_right)
+    }
+
     /// Get a cloned PYIN data (if available) in a thread-safe way.
     pub fn get_pyin(&self) -> Option<PYINData> {
         self.pyin.read().ok().and_then(|g| g.clone())

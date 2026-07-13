@@ -217,7 +217,11 @@ impl Track {
     /// Internal function to send an UpdateTrackAudio command to the AudioController with the current audio data of the track
     pub fn send_update(&self) {
         debug!(track_id = self.id, "Sending UpdateTrackAudio command");
-        let audio_data = self.audio.clone();
+        let mut audio_data = self.audio.clone();
+        if self.muted {
+            debug!(track_id = self.id, "Track is muted, sending empty audio");
+            audio_data = audio_data.get_muted();
+        }
         let cmd = AudioCommand::SendTrack(audio_data, self.id);
         let sender = self.audio_controller_sender.clone();
         tokio::spawn(async move {

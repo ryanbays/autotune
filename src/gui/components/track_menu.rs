@@ -222,7 +222,11 @@ impl TrackMenu {
                                     );
                                 }
                                 audio.desired_f0 = None;
-                            } else if let Some(cached) = self.cached_desired_f0.clone() {
+                            }
+                            /*
+                            /// This code is useless because manual adjustments aren't possible so
+                            /// falling back to the scale/root works fine.
+                            else if let Some(cached) = self.cached_desired_f0.clone() {
                                 info!(
                                     track_id = id,
                                     cached_len = cached.len(),
@@ -230,7 +234,9 @@ impl TrackMenu {
                                 );
                                 audio.desired_f0 = Some(cached);
                                 self.cached_desired_f0 = None;
-                            } else {
+                            }
+                            */
+                            else {
                                 // No cache: initialize from pyin, respecting scale/root if set
                                 info!(
                                     track_id = id,
